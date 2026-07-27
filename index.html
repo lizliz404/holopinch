@@ -1,0 +1,73 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <title>HoloPinch — Hold a hologram between your hands</title>
+    <meta
+      name="description"
+      content="Browser AR toy: pinch with both hands and a living holographic mesh appears between them. MediaPipe + WebGL. No app install."
+    />
+    <link rel="canonical" href="https://holopinch.lizliz.xyz/" />
+    <meta name="robots" content="index,follow" />
+    <meta name="theme-color" content="#0a0a0c" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+
+    <meta property="og:type" content="website" />
+    <meta property="og:url" content="https://holopinch.lizliz.xyz/" />
+    <meta property="og:title" content="HoloPinch — Hold a hologram between your hands" />
+    <meta
+      property="og:description"
+      content="Browser AR toy: pinch with both hands and a living holographic mesh appears between them. MediaPipe + WebGL. No app install."
+    />
+    <meta property="og:image" content="https://holopinch.lizliz.xyz/og.png" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="HoloPinch — Hold a hologram between your hands" />
+    <meta
+      name="twitter:description"
+      content="Browser AR toy: pinch with both hands and a living holographic mesh appears between them. MediaPipe + WebGL. No app install."
+    />
+    <meta name="twitter:image" content="https://holopinch.lizliz.xyz/og.png" />
+  </head>
+  <body>
+    <div id="app">
+      <video id="video" playsinline muted></video>
+      <canvas id="overlay"></canvas>
+
+      <header id="topbar">
+        <div class="brand">HoloPinch</div>
+        <p class="tagline">No app. No filter pack. Just your hands and a browser.</p>
+      </header>
+
+      <div id="angle-labels"></div>
+
+      <footer id="hud">
+        <div id="status">Demo ready — drag the orbs, or start the camera.</div>
+        <div id="angles-readout"></div>
+
+        <button id="btn-cam" type="button" class="primary">Start camera</button>
+
+        <div class="chips" role="toolbar" aria-label="Modes">
+          <button id="btn-demo" type="button" class="chip active" aria-pressed="true">Demo</button>
+          <button id="chip-angles" type="button" class="chip active" aria-pressed="true">Angles</button>
+          <button id="chip-edges" type="button" class="chip active" aria-pressed="true">Edges</button>
+          <button id="chip-guess" type="button" class="chip" aria-pressed="false">Guess</button>
+          <button id="chip-shade" type="button" class="chip" aria-pressed="false" title="Cycle shade: hybrid → holo → normal">Shade</button>
+        </div>
+
+        <div id="guess-panel" class="hidden">
+          <label>
+            Guess this angle (°)
+            <input id="guess-input" type="number" min="0" max="180" step="1" placeholder="°" inputmode="numeric" />
+          </label>
+          <button id="btn-reveal" type="button">Reveal</button>
+          <div id="guess-result"></div>
+        </div>
+      </footer>
+    </div>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>
