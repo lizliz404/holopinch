@@ -1,4 +1,4 @@
-import type { Landmark } from './hands';
+import type { Landmark } from './landmarks';
 
 export type DemoPinch = {
   left: { x: number; y: number };
@@ -12,6 +12,7 @@ export type DemoPinch = {
 /**
  * Mouse/touch-draggable two-hand simulator.
  * Drag handles = hand positions; wheel = pinch open; shift+wheel = finger spread.
+ * Touch: two-finger vertical = open; two-finger horizontal = spread.
  * Continuous — not two presets.
  */
 export class DemoHands {
@@ -24,12 +25,26 @@ export class DemoHands {
 
   private root: HTMLElement;
   private handles: { el: HTMLElement; side: 'left' | 'right' }[] = [];
-  private dragging: 'left' | 'right' | null = null;
+  private dragging: { side: 'left' | 'right'; pointerId: number } | null = null;
+  private pointers = new Map<number, { x: number; y: number }>();
+  private twoFingerLast: { x: number; y: number } | null = null;
   enabled = true;
 
   constructor(root: HTMLElement) {
     this.root = root;
     this.mountHandles();
+  }
+
+  private midpoint(): { x: number; y: number } | null {
+    if (this.pointers.size < 2) return null;
+    let sx = 0;
+    let sy = 0;
+    for (const p of this.pointers.values()) {
+      sx += p.x;
+      sy += p.y;
+    }
+    const n = this.pointers.size;
+    return { x: sx / n, y: sy / n };
   }
 
   private mountHandles(): void {
@@ -44,22 +59,103 @@ export class DemoHands {
       el.addEventListener('pointerdown', (e: PointerEvent) => {
         if (!this.enabled) return;
         e.preventDefault();
-        this.dragging = side;
-        el.setPointerCapture(e.pointerId);
+        this.pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+        if (this.pointers.size === 1) {
+          this.dragging = { side, pointerId: e.pointerId };
+          el.setPointerCapture(e.pointerId);
+        } else {
+          this.dragging = null;
+          this.twoFingerLast = this.midpoint();
+        }
       });
     }
 
-    window.addEventListener('pointermove', (e) => {
-      if (!this.dragging || !this.enabled) return;
-      const rect = this.root.getBoundingClientRect();
-      const x = Math.min(1, Math.max(0, (e.clientX - rect.left) / rect.width));
-      const y = Math.min(1, Math.max(0, (e.clientY - rect.top) / rect.height));
-      this.pinch[this.dragging] = { x, y };
-      this.syncHandles();
-    });
-    window.addEventListener('pointerup', () => {
-      this.dragging = null;
-    });
+    this.root.addEventListener(
+      'pointerdown',
+      (e: PointerEvent) => {
+        if (!this.enabled) return;
+        const t = e.target as HTMLElement | null;
+        if (t?.classList.contains('demo-handle')) return;
+        // Only capture stage gestures — ignore HUD / buttons
+        if (t && t !== this.root && !t.closest('#overlay')) {
+          const tag = t.tagName;
+          if (
+            tag === 'BUTTON' ||
+            tag === 'INPUT' ||
+            tag === 'LABEL' ||
+            t.closest('#hud') ||
+            t.closest('#about-panel') ||
+            t.closest('#btn-about')
+          ) {
+            return;
+          }
+        }
+        e.preventDefault();
+        this.pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+        if (this.pointers.size >= 2) {
+          this.dragging = null;
+          this.twoFingerLast = this.midpoint();
+        }
+      },
+      { passive: false },
+    );
+
+    window.addEventListener(
+      'pointermove',
+      (e: PointerEvent) => {
+        if (!this.enabled) return;
+        if (!this.pointers.has(e.pointerId)) return;
+        this.pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+
+        if (this.pointers.size >= 2) {
+          e.preventDefault();
+          const mid = this.midpoint();
+          if (!mid || !this.twoFingerLast) {
+            this.twoFingerLast = mid;
+            return;
+          }
+          const rect = this.root.getBoundingClientRect();
+          const dx = mid.x - this.twoFingerLast.x;
+          const dy = mid.y - this.twoFingerLast.y;
+          this.twoFingerLast = mid;
+          // Vertical → open (same range as wheel: 0.03–0.35)
+          this.pinch.open = Math.min(
+            0.35,
+            Math.max(0.03, this.pinch.open + (-dy / Math.max(rect.height, 1)) * 0.4),
+          );
+          // Horizontal → spread (same range as shift+wheel: 0.15–1.2)
+          this.pinch.spread = Math.min(
+            1.2,
+            Math.max(0.15, this.pinch.spread + (dx / Math.max(rect.width, 1)) * 1.0),
+          );
+          return;
+        }
+
+        if (this.dragging && this.dragging.pointerId === e.pointerId) {
+          const rect = this.root.getBoundingClientRect();
+          const x = Math.min(1, Math.max(0, (e.clientX - rect.left) / rect.width));
+          const y = Math.min(1, Math.max(0, (e.clientY - rect.top) / rect.height));
+          this.pinch[this.dragging.side] = { x, y };
+          this.syncHandles();
+        }
+      },
+      { passive: false },
+    );
+
+    const endPointer = (e: PointerEvent) => {
+      if (!this.pointers.has(e.pointerId)) return;
+      this.pointers.delete(e.pointerId);
+      if (this.dragging?.pointerId === e.pointerId) {
+        this.dragging = null;
+      }
+      if (this.pointers.size < 2) {
+        this.twoFingerLast = null;
+      } else {
+        this.twoFingerLast = this.midpoint();
+      }
+    };
+    window.addEventListener('pointerup', endPointer);
+    window.addEventListener('pointercancel', endPointer);
 
     this.root.addEventListener(
       'wheel',
@@ -89,6 +185,11 @@ export class DemoHands {
     this.enabled = on;
     for (const h of this.handles) {
       h.el.style.display = on ? 'block' : 'none';
+    }
+    if (!on) {
+      this.dragging = null;
+      this.pointers.clear();
+      this.twoFingerLast = null;
     }
   }
 

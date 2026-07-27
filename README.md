@@ -1,12 +1,25 @@
 # HoloPinch
 
-Hold a living holographic solid between your hands in the browser.
-
-Pinch with both hands (or drag the Demo orbs). Shape, opacity, and edges morph on a single **flatness** continuum — flat opaque card ↔ translucent crystal bar. No Card/Prism mode toggle.
+Pinch the air with both hands and a living holographic solid appears between them — MediaPipe hand tracking + WebGL in a plain browser tab. No app install, no account, no backend. Shape, opacity, and edges ride one continuous **flatness** continuum (opaque foil card ↔ translucent crystal bar).
 
 **Live:** https://holopinch.lizliz.xyz/
 
-## Run
+<!-- screenshot: docs/hero.png -->
+
+## Controls
+
+| Input | Desktop | Touch |
+|---|---|---|
+| Move hands | Drag the orbs | Drag the orbs |
+| Pinch open | Scroll wheel | Two-finger vertical drag |
+| Finger spread | Shift + scroll | Two-finger horizontal drag |
+| Camera | Start camera → pinch thumb+index | Same |
+
+## Stack
+
+Vite · TypeScript · three.js · MediaPipe HandLandmarker (lazy-loaded on camera start)
+
+## Run / build
 
 ```bash
 npm install
@@ -14,8 +27,12 @@ npm run dev    # http://localhost:5188
 npm run build  # → dist/
 ```
 
-## Camera note
+Camera needs **HTTPS** (or localhost). If permission is blocked, use Demo.
 
-Camera requires **HTTPS** (or localhost). Allow permission when prompted. If blocked, use **Demo** — drag the two orbs; scroll adjusts pinch opening, Shift+scroll adjusts finger spread.
+## Deploy
 
-Stack: Vite + TypeScript + Three.js + MediaPipe Hands (CDN wasm/model).
+Cloudflare Pages, Git-connected (build on push). No direct upload.
+
+## License
+
+MIT — see `LICENSE`.

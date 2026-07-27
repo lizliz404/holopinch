@@ -1,0 +1,3 @@
+User-agent: *
+Allow: /
+Sitemap: https://holopinch.lizliz.xyz/sitemap.xml

@@ -13,6 +13,13 @@
     <meta name="theme-color" content="#0a0a0c" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
 
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=Inter:wght@400;600;800&display=swap"
+      rel="stylesheet"
+    />
+
     <meta property="og:type" content="website" />
     <meta property="og:url" content="https://holopinch.lizliz.xyz/" />
     <meta property="og:title" content="HoloPinch — Hold a hologram between your hands" />
@@ -31,6 +38,31 @@
       content="Browser AR toy: pinch with both hands and a living holographic mesh appears between them. MediaPipe + WebGL. No app install."
     />
     <meta name="twitter:image" content="https://holopinch.lizliz.xyz/og.png" />
+
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@type": "WebApplication",
+        "name": "HoloPinch",
+        "url": "https://holopinch.lizliz.xyz/",
+        "applicationCategory": "GameApplication",
+        "operatingSystem": "Any (browser)",
+        "browserRequirements": "Requires a browser with camera access and WebGL",
+        "offers": {
+          "@type": "Offer",
+          "price": "0",
+          "priceCurrency": "USD"
+        },
+        "author": {
+          "@type": "Person",
+          "name": "Liz"
+        },
+        "isPartOf": {
+          "@type": "WebSite",
+          "url": "https://lizliz.xyz"
+        }
+      }
+    </script>
   </head>
   <body>
     <div id="app">
@@ -41,6 +73,53 @@
         <div class="brand">HoloPinch</div>
         <p class="tagline">No app. No filter pack. Just your hands and a browser.</p>
       </header>
+
+      <button
+        id="btn-about"
+        type="button"
+        aria-expanded="false"
+        aria-controls="about-panel"
+        title="About"
+      >
+        ?
+      </button>
+
+      <div id="about-backdrop" class="hidden" aria-hidden="true"></div>
+      <aside id="about-panel" class="hidden" role="dialog" aria-label="About HoloPinch">
+        <h2>About HoloPinch</h2>
+
+        <h3>What it is</h3>
+        <p>
+          HoloPinch is a browser AR toy. Pinch the air with both hands and a living holographic solid
+          appears between them — hand tracking via MediaPipe, rendered in WebGL. No app install, no
+          account, no backend.
+        </p>
+
+        <h3>How to play</h3>
+        <p>
+          Start camera → show both hands → pinch thumb+index. Move hands apart and spread fingers to
+          grow a translucent crystal bar; bring them close and flat for an opaque foil card. No
+          camera? Demo mode: drag the orbs (touch: two-finger gestures).
+        </p>
+
+        <h3>The angle game</h3>
+        <p>Toggle Angles/Guess to guess the interior angles of your pinch quad.</p>
+
+        <h3>Tech</h3>
+        <p>
+          Vite + TypeScript + three.js + MediaPipe HandLandmarker. One continuous
+          <code>flatness</code> scalar drives opacity, edges, and film — no mode switch.
+        </p>
+
+        <p class="about-attr">
+          Made by Liz — more at
+          <a href="https://lizliz.xyz" target="_blank" rel="noopener noreferrer">lizliz.xyz</a>
+          ·
+          <a href="https://github.com/lizliz404/holopinch" target="_blank" rel="noopener noreferrer"
+            >Source on GitHub</a
+          >
+        </p>
+      </aside>
 
       <div id="angle-labels"></div>
 

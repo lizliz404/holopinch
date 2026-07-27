@@ -9,8 +9,8 @@ import {
   landmarkToScene,
 } from './geometry';
 import { deriveMaterialParams } from './flatness';
-import type { Landmark } from './hands';
-import { TIP } from './hands';
+import type { Landmark } from './landmarks';
+import { TIP } from './landmarks';
 
 export type ShadeMode = 'hybrid' | 'holo' | 'normal';
 

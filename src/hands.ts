@@ -3,22 +3,16 @@ import {
   HandLandmarker,
   type HandLandmarkerResult,
 } from '@mediapipe/tasks-vision';
+import type { Landmark } from './landmarks';
 
-export type Landmark = { x: number; y: number; z: number };
+export type { Landmark } from './landmarks';
+export { TIP } from './landmarks';
 
 export type TrackedHands = {
   left: Landmark[] | null;
   right: Landmark[] | null;
   raw: HandLandmarkerResult | null;
 };
-
-export const TIP = {
-  thumb: 4,
-  index: 8,
-  middle: 12,
-  ring: 16,
-  pinky: 20,
-} as const;
 
 const MODEL_URL =
   'https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task';

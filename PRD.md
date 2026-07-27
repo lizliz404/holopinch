@@ -2,7 +2,7 @@
 
 **Public name:** HoloPinch  
 **Domain:** https://holopinch.lizliz.xyz  
-**Repo path:** `/home/ubuntu/projects/hand-prism-proto` (ship as `holopinch`)  
+**Repo path:** `/home/ubuntu/projects/holopinch`  
 **One-liner:** Pinch the air. Hold a living holographic solid between your hands.
 
 ---

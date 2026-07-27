@@ -1,6 +1,6 @@
 import './style.css';
 import { DemoHands } from './demo';
-import { HandTracker } from './hands';
+import type { HandTracker } from './hands';
 import { PrismScene, type ShadeMode } from './scene';
 
 const app = document.querySelector<HTMLDivElement>('#app')!;
@@ -19,10 +19,46 @@ const guessPanel = document.querySelector<HTMLDivElement>('#guess-panel')!;
 const guessInput = document.querySelector<HTMLInputElement>('#guess-input')!;
 const btnReveal = document.querySelector<HTMLButtonElement>('#btn-reveal')!;
 const guessResult = document.querySelector<HTMLDivElement>('#guess-result')!;
+const hud = document.querySelector<HTMLElement>('#hud')!;
+const btnAbout = document.querySelector<HTMLButtonElement>('#btn-about')!;
+const aboutPanel = document.querySelector<HTMLDivElement>('#about-panel')!;
+const aboutBackdrop = document.querySelector<HTMLDivElement>('#about-backdrop')!;
 
-const scene = new PrismScene(canvas);
+const debugTelemetry = new URLSearchParams(location.search).get('debug') === '1';
+const isCoarsePointer = window.matchMedia('(pointer: coarse)').matches;
+const DEMO_STATUS = isCoarsePointer
+  ? 'Demo — drag orbs · two-finger vertical = pinch open · two-finger horizontal = finger spread'
+  : 'Demo — drag orbs · scroll = pinch open · Shift+scroll = finger spread';
+
 const demo = new DemoHands(app);
-const tracker = new HandTracker();
+
+function showWebGlFallback(): void {
+  const msg = document.createElement('div');
+  msg.id = 'webgl-fallback';
+  msg.innerHTML =
+    '<p><strong>WebGL is unavailable</strong> in this browser — HoloPinch needs it to render the hologram. Try a current Chrome/Safari.</p>';
+  app.appendChild(msg);
+  canvas.style.display = 'none';
+  hud.style.display = 'none';
+  btnAbout.style.display = 'none';
+  demo.setEnabled(false);
+}
+
+let scene: PrismScene | null = null;
+try {
+  scene = new PrismScene(canvas);
+} catch (err) {
+  console.error(err);
+  showWebGlFallback();
+}
+
+if (scene) {
+  startApp(scene);
+}
+
+function startApp(scene: PrismScene): void {
+
+let tracker: HandTracker | null = null;
 
 type InputMode = 'demo' | 'camera';
 const SHADE_CYCLE: ShadeMode[] = ['hybrid', 'holo', 'normal'];
@@ -39,10 +75,15 @@ let cameraStarting = false;
 let showAngles = true;
 let shadeMode: ShadeMode = 'hybrid';
 
-let camLeft: ReturnType<HandTracker['detect']>['left'] = null;
-let camRight: ReturnType<HandTracker['detect']>['right'] = null;
+type Detected = ReturnType<HandTracker['detect']>;
+let camLeft: Detected['left'] = null;
+let camRight: Detected['right'] = null;
 let lastDetectHadLeft = false;
 let lastDetectHadRight = false;
+
+let shareHintShown = false;
+let shareHintUntil = 0;
+let aboutOpen = false;
 
 function setStatus(msg: string): void {
   statusEl.textContent = msg;
@@ -53,6 +94,13 @@ function setChip(el: HTMLButtonElement, on: boolean): void {
   el.setAttribute('aria-pressed', on ? 'true' : 'false');
 }
 
+function setAboutOpen(open: boolean): void {
+  aboutOpen = open;
+  aboutPanel.classList.toggle('hidden', !open);
+  aboutBackdrop.classList.toggle('hidden', !open);
+  btnAbout.setAttribute('aria-expanded', open ? 'true' : 'false');
+}
+
 function setInputMode(mode: InputMode): void {
   inputMode = mode;
   setChip(btnDemo, mode === 'demo');
@@ -61,9 +109,7 @@ function setInputMode(mode: InputMode): void {
   demo.setEnabled(mode === 'demo');
   video.classList.toggle('live', mode === 'camera');
   if (mode === 'demo') {
-    setStatus(
-      'Demo — drag orbs · scroll = pinch open · Shift+scroll = finger spread',
-    );
+    setStatus(DEMO_STATUS);
   }
 }
 
@@ -73,6 +119,10 @@ async function enableCamera(): Promise<void> {
   btnCam.disabled = true;
   try {
     setStatus('Loading hand model…');
+    if (!tracker) {
+      const mod = await import('./hands');
+      tracker = new mod.HandTracker();
+    }
     if (!tracker.ready) await tracker.init();
     setStatus('Requesting camera permission…');
     await tracker.startCamera(video);
@@ -97,7 +147,7 @@ async function enableCamera(): Promise<void> {
 }
 
 function disableCamera(): void {
-  tracker.stopCamera(video);
+  tracker?.stopCamera(video);
   camLeft = null;
   camRight = null;
   lastDetectHadLeft = false;
@@ -158,6 +208,18 @@ btnReveal.addEventListener('click', () => {
   }
 });
 
+btnAbout.addEventListener('click', () => {
+  setAboutOpen(!aboutOpen);
+});
+
+aboutBackdrop.addEventListener('click', () => {
+  setAboutOpen(false);
+});
+
+window.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape' && aboutOpen) setAboutOpen(false);
+});
+
 function paintLabels(
   angles: { deg: number; x: number; y: number }[],
   visible: boolean,
@@ -186,7 +248,7 @@ function frame(): void {
     right = d.right;
     mirrorX = false;
     demo.syncHandles();
-  } else {
+  } else if (tracker) {
     const det = tracker.detect(video);
     lastDetectHadLeft = !!det.left;
     lastDetectHadRight = !!det.right;
@@ -198,7 +260,20 @@ function frame(): void {
     right = resolved.right;
     mirrorX = true;
 
-    if (!resolved.held && !resolved.fading) {
+    const now = performance.now();
+    const meshLive =
+      !resolved.held &&
+      !resolved.fading &&
+      lastDetectHadLeft &&
+      lastDetectHadRight;
+
+    if (meshLive && !shareHintShown) {
+      shareHintShown = true;
+      shareHintUntil = now + 6000;
+      setStatus('Screenshot it — tag #HoloPinch');
+    } else if (now < shareHintUntil) {
+      // keep share hint on the status line
+    } else if (!resolved.held && !resolved.fading) {
       if (lastDetectHadLeft !== lastDetectHadRight) {
         setStatus('Show both hands');
       } else if (!lastDetectHadLeft && !lastDetectHadRight) {
@@ -221,7 +296,9 @@ function frame(): void {
       chipGuess.classList.contains('active') && !revealed
         ? 'Angles hidden — guess, then Reveal'
         : `∠ ${angles.map((a) => a.deg.toFixed(0) + '°').join(' · ')}`;
-    anglesReadout.textContent = `${angText}  ·  span ${span.toFixed(2)}  ·  flat ${flatness.toFixed(2)}`;
+    anglesReadout.textContent = debugTelemetry
+      ? `${angText}  ·  span ${span.toFixed(2)}  ·  flat ${flatness.toFixed(2)}`
+      : angText;
   } else {
     anglesReadout.textContent =
       inputMode === 'camera' ? 'Waiting for both hands…' : '';
@@ -243,3 +320,4 @@ chipShade.textContent = SHADE_LABEL.hybrid;
 setInputMode('demo');
 scene.resize();
 requestAnimationFrame(frame);
+}

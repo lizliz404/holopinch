@@ -1,4 +1,4 @@
-# Hand Prism Proto — notes
+# HoloPinch — notes
 
 ## Question this answers
 Can we get a *continuous*, hand-driven holographic solid (not two fixed presets) with MediaPipe + Three.js in a throwaway afternoon?
@@ -16,7 +16,7 @@ Yes. One dynamic loft between left/right finger-tip sections is enough.
 
 ## Run
 ```bash
-cd /home/ubuntu/projects/hand-prism-proto
+cd /home/ubuntu/projects/holopinch
 npm run dev   # http://localhost:5188
 ```
 
