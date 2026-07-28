@@ -1,12 +1,16 @@
 import * as THREE from 'three';
+import { OneEuroFilter } from '1eurofilter';
 import { hybridShader, holoShader, normalRgbShader } from './shaders';
 import {
-  buildDynamicLoft,
-  buildFlatQuad,
-  buildPerimeterLoop,
   handSectionFromLandmarks,
   interiorAngleAt,
   landmarkToScene,
+  LOFT_MAX_VERTS,
+  WIRE_MAX_POINTS,
+  writeDynamicLoft,
+  writeFlatQuad,
+  writeLoftWire,
+  writePerimeterWire,
 } from './geometry';
 import { deriveMaterialParams } from './flatness';
 import type { Landmark } from './landmarks';
@@ -29,12 +33,34 @@ export type UpdateResult = {
 const SECTION_TIPS = [TIP.thumb, TIP.index, TIP.middle, TIP.ring];
 const HOLD_MS = 400;
 
+/** One-Euro on a Vector3 (official Casiez filter — not fixed EMA). */
+class Vec3Euro {
+  private fx: OneEuroFilter;
+  private fy: OneEuroFilter;
+  private fz: OneEuroFilter;
+  private out = new THREE.Vector3();
+
+  constructor(freq = 60, mincutoff = 1.0, beta = 0.007) {
+    this.fx = new OneEuroFilter(freq, mincutoff, beta, 1.0);
+    this.fy = new OneEuroFilter(freq, mincutoff, beta, 1.0);
+    this.fz = new OneEuroFilter(freq, mincutoff, beta, 1.0);
+  }
+
+  filter(v: THREE.Vector3, tSec: number): THREE.Vector3 {
+    return this.out.set(
+      this.fx.filter(v.x, tSec),
+      this.fy.filter(v.y, tSec),
+      this.fz.filter(v.z, tSec),
+    );
+  }
+}
+
 export class PrismScene {
   readonly renderer: THREE.WebGLRenderer;
   readonly scene = new THREE.Scene();
   readonly camera: THREE.PerspectiveCamera;
-  private mesh: THREE.Mesh | null = null;
-  private wire: THREE.Line | THREE.LineSegments | null = null;
+  private mesh: THREE.Mesh;
+  private wire: THREE.LineSegments;
   private matHybrid: THREE.ShaderMaterial;
   private matNormal: THREE.ShaderMaterial;
   private matHolo: THREE.ShaderMaterial;
@@ -49,16 +75,33 @@ export class PrismScene {
   private lastMirrorX = false;
   private lastResult: UpdateResult = { angles: [], span: 0, flatness: 0 };
   private lastTopo = { internalWires: true, usePerimeterOnly: false };
+  private hasMesh = false;
+
+  private posArr = new Float32Array(LOFT_MAX_VERTS * 3);
+  private normArr = new Float32Array(LOFT_MAX_VERTS * 3);
+  private loftArr = new Float32Array(LOFT_MAX_VERTS);
+  private posAttr: THREE.BufferAttribute;
+  private normAttr: THREE.BufferAttribute;
+  private loftAttr: THREE.BufferAttribute;
+  private meshGeo: THREE.BufferGeometry;
+
+  private wireArr = new Float32Array(WIRE_MAX_POINTS * 3);
+  private wireAttr: THREE.BufferAttribute;
+  private wireGeo: THREE.BufferGeometry;
 
   private smoothLeft: THREE.Vector3[] | null = null;
   private smoothRight: THREE.Vector3[] | null = null;
   private smoothCorners: THREE.Vector3[] | null = null;
-  private smoothAlpha = 0.38;
+  private leftFilters: Vec3Euro[] = [];
+  private rightFilters: Vec3Euro[] = [];
+  private cornerFilters: Vec3Euro[] = [];
 
   private lastGoodLeft: Landmark[] | null = null;
   private lastGoodRight: Landmark[] | null = null;
   private lastGoodAt = 0;
   private holding = false;
+
+  private scratchLm = new THREE.Vector3();
 
   constructor(canvas: HTMLCanvasElement) {
     this.renderer = new THREE.WebGLRenderer({
@@ -118,21 +161,44 @@ export class PrismScene {
       opacity: 0.95,
     });
 
+    // Preallocated dynamic mesh (three.js How-to-update-things pattern).
+    this.meshGeo = new THREE.BufferGeometry();
+    this.posAttr = new THREE.BufferAttribute(this.posArr, 3);
+    this.posAttr.setUsage(THREE.DynamicDrawUsage);
+    this.normAttr = new THREE.BufferAttribute(this.normArr, 3);
+    this.normAttr.setUsage(THREE.DynamicDrawUsage);
+    this.loftAttr = new THREE.BufferAttribute(this.loftArr, 1);
+    this.loftAttr.setUsage(THREE.DynamicDrawUsage);
+    this.meshGeo.setAttribute('position', this.posAttr);
+    this.meshGeo.setAttribute('normal', this.normAttr);
+    this.meshGeo.setAttribute('loftU', this.loftAttr);
+    this.meshGeo.setDrawRange(0, 0);
+    this.mesh = new THREE.Mesh(this.meshGeo, this.matHybrid);
+    this.mesh.visible = false;
+    this.mesh.frustumCulled = false;
+    this.scene.add(this.mesh);
+
+    this.wireGeo = new THREE.BufferGeometry();
+    this.wireAttr = new THREE.BufferAttribute(this.wireArr, 3);
+    this.wireAttr.setUsage(THREE.DynamicDrawUsage);
+    this.wireGeo.setAttribute('position', this.wireAttr);
+    this.wireGeo.setDrawRange(0, 0);
+    this.wire = new THREE.LineSegments(this.wireGeo, this.matWire);
+    this.wire.visible = false;
+    this.wire.frustumCulled = false;
+    this.scene.add(this.wire);
+
     this.resize();
   }
 
   setShadeMode(mode: ShadeMode): void {
     this.shadeMode = mode;
-    if (this.mesh) this.mesh.material = this.activeMat();
+    this.mesh.material = this.activeMat();
   }
 
   setShowWire(on: boolean): void {
     this.showWire = on;
-    if (this.wire) this.wire.visible = on;
-  }
-
-  setSmoothAlpha(a: number): void {
-    this.smoothAlpha = THREE.MathUtils.clamp(a, 0.05, 1);
+    this.wire.visible = on && this.hasMesh;
   }
 
   /** Soft fade multiplier 0..1 (lost-hand hold). */
@@ -154,17 +220,12 @@ export class PrismScene {
     this.camera.updateProjectionMatrix();
   }
 
-  private clearMesh(): void {
-    if (this.mesh) {
-      this.scene.remove(this.mesh);
-      this.mesh.geometry.dispose();
-      this.mesh = null;
-    }
-    if (this.wire) {
-      this.scene.remove(this.wire);
-      this.wire.geometry.dispose();
-      this.wire = null;
-    }
+  private hideMesh(): void {
+    this.hasMesh = false;
+    this.mesh.visible = false;
+    this.wire.visible = false;
+    this.meshGeo.setDrawRange(0, 0);
+    this.wireGeo.setDrawRange(0, 0);
     this.lastInputLeft = null;
     this.lastInputRight = null;
   }
@@ -183,19 +244,26 @@ export class PrismScene {
     return this.matHybrid;
   }
 
+  private ensureFilters(n: number, bucket: Vec3Euro[]): void {
+    while (bucket.length < n) bucket.push(new Vec3Euro(60, 1.0, 0.007));
+  }
+
   private smoothRing(
     prev: THREE.Vector3[] | null,
     next: THREE.Vector3[],
+    filters: Vec3Euro[],
+    tSec: number,
   ): THREE.Vector3[] {
+    this.ensureFilters(next.length, filters);
     if (!prev || prev.length !== next.length) {
-      return next.map((p) => p.clone());
+      // Seed filters without storing clones of raw targets as "prev identity"
+      return next.map((p, i) => filters[i].filter(p, tSec).clone());
     }
-    return next.map((p, i) => prev[i].clone().lerp(p, this.smoothAlpha));
+    return next.map((p, i) => filters[i].filter(p, tSec).clone());
   }
 
   /**
    * Resolve hands with ~400ms hold on lost tracking, then fade out.
-   * Returns effective landmarks + whether we're in hold/fade.
    */
   resolveHands(
     left: Landmark[] | null,
@@ -254,10 +322,10 @@ export class PrismScene {
   ): UpdateResult {
     const canvas = this.renderer.domElement;
     const aspect = (canvas.clientWidth || 1) / (canvas.clientHeight || 1);
-    const toV = (p: Landmark) => landmarkToScene(p, aspect, mirrorX);
+    const toV = (p: Landmark) => landmarkToScene(p, aspect, mirrorX, this.scratchLm).clone();
 
     if (!left || !right || left.length < 2 || right.length < 2) {
-      this.clearMesh();
+      this.hideMesh();
       this.smoothLeft = null;
       this.smoothRight = null;
       this.smoothCorners = null;
@@ -268,7 +336,7 @@ export class PrismScene {
       left === this.lastInputLeft &&
       right === this.lastInputRight &&
       mirrorX === this.lastMirrorX &&
-      !!this.mesh &&
+      this.hasMesh &&
       !!this.smoothCorners;
     if (sameInput) {
       return {
@@ -277,19 +345,25 @@ export class PrismScene {
       };
     }
 
+    const tSec = performance.now() / 1000;
     const targetL = handSectionFromLandmarks(left, toV, SECTION_TIPS);
     const targetR = handSectionFromLandmarks(right, toV, SECTION_TIPS);
     const alignedR = alignRingWinding(targetL, targetR);
 
-    this.smoothLeft = this.smoothRing(this.smoothLeft, targetL);
-    this.smoothRight = this.smoothRing(this.smoothRight, alignedR);
+    this.smoothLeft = this.smoothRing(this.smoothLeft, targetL, this.leftFilters, tSec);
+    this.smoothRight = this.smoothRing(this.smoothRight, alignedR, this.rightFilters, tSec);
 
     const lThumb = toV(left[TIP.thumb] ?? left[0]);
     const lIndex = toV(left[TIP.index] ?? left[1]);
     const rThumb = toV(right[TIP.thumb] ?? right[0]);
     const rIndex = toV(right[TIP.index] ?? right[1]);
     const rawCorners = [lThumb, lIndex, rIndex, rThumb];
-    this.smoothCorners = this.smoothRing(this.smoothCorners, rawCorners);
+    this.smoothCorners = this.smoothRing(
+      this.smoothCorners,
+      rawCorners,
+      this.cornerFilters,
+      tSec,
+    );
 
     const span = ringSpan(this.smoothLeft, this.smoothRight);
     const params = deriveMaterialParams({
@@ -304,36 +378,59 @@ export class PrismScene {
       usePerimeterOnly: params.usePerimeterOnly,
     };
 
-    let geo: THREE.BufferGeometry;
+    let vertexCount = 0;
     if (params.usePerimeterOnly) {
-      geo = buildFlatQuad(this.smoothCorners);
+      vertexCount = writeFlatQuad(
+        this.smoothCorners,
+        this.posArr,
+        this.normArr,
+        this.loftArr,
+      );
     } else {
-      geo = buildDynamicLoft(this.smoothLeft, this.smoothRight, {
-        minSegments: params.minSegments,
-        maxSegments: params.maxSegments,
-        bulgeScale: params.bulgeScale,
-      });
+      vertexCount = writeDynamicLoft(
+        this.smoothLeft,
+        this.smoothRight,
+        {
+          minSegments: params.minSegments,
+          maxSegments: params.maxSegments,
+          bulgeScale: params.bulgeScale,
+        },
+        this.posArr,
+        this.normArr,
+        this.loftArr,
+      ).vertexCount;
     }
 
-    this.clearMesh();
+    this.posAttr.needsUpdate = true;
+    this.normAttr.needsUpdate = true;
+    this.loftAttr.needsUpdate = true;
+    this.meshGeo.setDrawRange(0, vertexCount);
+    this.meshGeo.computeBoundingSphere();
+
     const mat = this.activeMat();
+    this.mesh.material = mat;
     if (mat.uniforms.uFilmMix) mat.uniforms.uFilmMix.value = params.filmMix;
     if (mat.uniforms.uFlatness) mat.uniforms.uFlatness.value = params.flatness;
-
-    this.mesh = new THREE.Mesh(geo, mat);
-    this.scene.add(this.mesh);
     this.baseOpacity = params.opacity;
     this.applyOpacity();
 
+    let wirePoints = 0;
     if (params.usePerimeterOnly || !params.internalWires) {
-      const loopGeo = buildPerimeterLoop(this.smoothCorners);
-      this.wire = new THREE.Line(loopGeo, this.matWire);
+      wirePoints = writePerimeterWire(this.smoothCorners, this.wireArr);
     } else {
-      const edges = new THREE.EdgesGeometry(geo, params.edgeThreshold);
-      this.wire = new THREE.LineSegments(edges, this.matWire);
+      wirePoints = writeLoftWire(
+        this.smoothLeft,
+        this.smoothRight,
+        this.wireArr,
+        true,
+      );
     }
-    this.wire.visible = this.showWire;
-    this.scene.add(this.wire);
+    this.wireAttr.needsUpdate = true;
+    this.wireGeo.setDrawRange(0, wirePoints);
+    this.wire.visible = this.showWire && vertexCount > 0;
+
+    this.hasMesh = vertexCount > 0;
+    this.mesh.visible = this.hasMesh;
 
     this.lastInputLeft = left;
     this.lastInputRight = right;
@@ -357,7 +454,7 @@ export class PrismScene {
       interiorAngleAt(corners[2], corners[3], corners[0]),
     ];
 
-    const angles: AngleLabel[] = angleDefs.map((a) => {
+    return angleDefs.map((a) => {
       const ndc = a.labelPos.clone().project(this.camera);
       return {
         deg: a.deg,
@@ -365,8 +462,6 @@ export class PrismScene {
         y: (-ndc.y * 0.5 + 0.5) * h,
       };
     });
-
-    return angles;
   }
 
   render(): void {

@@ -29,6 +29,9 @@ HoloPinch 的问题不再是“能否做出手势驱动的全息体”——这�
 | 首屏无标签 continuum attract（`prefers-reduced-motion` 关闭） | done | `src/main.ts` |
 | 默认 Angles off；About 文案同步 | done | `main.ts` / `index.html` |
 | 同 camera frame 复用 geometry（identity cache） | done | `src/scene.ts` |
+| MediaPipe → Web Worker + backpressure | done | `src/hands.worker.ts` / `hands.ts` |
+| `1eurofilter` 替换固定 EMA | done | `src/scene.ts` |
+| 预分配 BufferGeometry + 手搓 wire（无 EdgesGeometry/帧） | done | `src/geometry.ts` / `scene.ts` |
 | flatness 拓扑 Schmitt hysteresis | done | `src/flatness.ts` + `scene.ts` |
 | 双手按图像 x 排序 | done | `src/anchors.ts` |
 | GPU → CPU HandLandmarker fallback | done | `src/hands.ts` |
@@ -39,7 +42,8 @@ HoloPinch 的问题不再是“能否做出手势驱动的全息体”——这�
 | 相机错误映射（denied / missing / busy） | done | `src/main.ts` |
 | 去词标虹彩循环（清汤/糖精风险） | done | `src/style.css` |
 
-**仍未做（需素材/真机）：** 真人手势 OG/9:16 master；iOS/中端 Android QA；MediaPipe 1.0；完整 geometry buffer reuse（beyond same-frame）；纯函数测试/CI；CSP。
+**仍未做（需素材/真机）：** 真人手势 OG/9:16 master；iOS/中端 Android QA；MediaPipe 1.0；CSP。  
+**本轮工程底座（见 [`docs/WHEELS.md`](WHEELS.md)）：** Worker MediaPipe + `1eurofilter` + 预分配 BufferGeometry（无每帧 EdgesGeometry）。
 
 ---
 

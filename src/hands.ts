@@ -1,8 +1,3 @@
-import {
-  FilesetResolver,
-  HandLandmarker,
-  type HandLandmarkerResult,
-} from '@mediapipe/tasks-vision';
 import type { Landmark } from './landmarks';
 
 export type { Landmark } from './landmarks';
@@ -13,53 +8,96 @@ export type TrackedHands = {
   right: Landmark[] | null;
   /** Unordered hands this frame (0–2), for tip-anchor resolution. */
   hands: Landmark[][];
-  raw: HandLandmarkerResult | null;
+  raw: null;
 };
 
-const MODEL_URL =
-  'https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task';
+type WorkerHand = {
+  landmarks: Landmark[];
+  handedness: string;
+};
 
-const WASM_URL =
-  'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.35/wasm';
+type WorkerOut =
+  | { type: 'ready'; delegate: string }
+  | { type: 'init-error'; error: string }
+  | { type: 'result'; hands: WorkerHand[] }
+  | { type: 'detect-error'; error: string };
 
+const empty: TrackedHands = {
+  left: null,
+  right: null,
+  hands: [],
+  raw: null,
+};
+
+function packHands(list: WorkerHand[]): TrackedHands {
+  let left: Landmark[] | null = null;
+  let right: Landmark[] | null = null;
+  const ordered: Landmark[][] = [];
+  for (const h of list) {
+    const pts = h.landmarks.map((p) => ({ x: p.x, y: p.y, z: p.z }));
+    ordered.push(pts);
+    const label = h.handedness;
+    if (label === 'Left') left = pts;
+    else if (label === 'Right') right = pts;
+    else if (!left) left = pts;
+    else right = pts;
+  }
+  return { left, right, hands: ordered, raw: null };
+}
+
+/**
+ * Camera hand tracker: MediaPipe in a Worker with single-frame backpressure.
+ * `detect()` is non-blocking — returns last result; kicks a new inference when idle.
+ */
 export class HandTracker {
-  private landmarker: HandLandmarker | null = null;
-  private lastVideoTime = -1;
+  private worker: Worker | null = null;
+  private isReady = false;
   private running = false;
-  private lastResult: TrackedHands = {
-    left: null,
-    right: null,
-    hands: [],
-    raw: null,
-  };
+  private inFlight = false;
+  private lastKickVideoTime = -1;
+  private lastResult: TrackedHands = empty;
+  private initPromise: Promise<void> | null = null;
 
   async init(): Promise<void> {
-    const vision = await FilesetResolver.forVisionTasks(WASM_URL);
-    const common = {
-      runningMode: 'VIDEO' as const,
-      numHands: 2,
-      minHandDetectionConfidence: 0.5,
-      minHandPresenceConfidence: 0.5,
-      minTrackingConfidence: 0.5,
-    };
-    try {
-      this.landmarker = await HandLandmarker.createFromOptions(vision, {
-        baseOptions: {
-          modelAssetPath: MODEL_URL,
-          delegate: 'GPU',
-        },
-        ...common,
-      });
-    } catch (err) {
-      console.warn('[HoloPinch] GPU HandLandmarker failed; retrying CPU', err);
-      this.landmarker = await HandLandmarker.createFromOptions(vision, {
-        baseOptions: {
-          modelAssetPath: MODEL_URL,
-          delegate: 'CPU',
-        },
-        ...common,
-      });
-    }
+    if (this.initPromise) return this.initPromise;
+    this.initPromise = new Promise<void>((resolve, reject) => {
+      try {
+        const worker = new Worker(new URL('./hands.worker.ts', import.meta.url), {
+          type: 'module',
+        });
+        this.worker = worker;
+        worker.onmessage = (ev: MessageEvent<WorkerOut>) => {
+          const msg = ev.data;
+          if (!msg) return;
+          if (msg.type === 'ready') {
+            this.isReady = true;
+            resolve();
+            return;
+          }
+          if (msg.type === 'init-error') {
+            reject(new Error(msg.error));
+            return;
+          }
+          if (msg.type === 'result') {
+            this.inFlight = false;
+            this.lastResult = packHands(msg.hands);
+            return;
+          }
+          if (msg.type === 'detect-error') {
+            this.inFlight = false;
+            console.warn('[HoloPinch] worker detect:', msg.error);
+          }
+        };
+        worker.onerror = (err) => {
+          this.inFlight = false;
+          reject(err.error ?? new Error(String(err.message)));
+        };
+        worker.postMessage({ type: 'init' });
+      } catch (err) {
+        reject(err);
+      }
+    });
+    return this.initPromise;
   }
 
   async startCamera(video: HTMLVideoElement): Promise<MediaStream> {
@@ -84,55 +122,65 @@ export class HandTracker {
     video.srcObject = stream;
     await video.play();
     this.running = true;
+    this.lastKickVideoTime = -1;
   }
 
   stopCamera(video: HTMLVideoElement): void {
     this.running = false;
+    this.inFlight = false;
     const stream = video.srcObject as MediaStream | null;
     stream?.getTracks().forEach((t) => t.stop());
     video.srcObject = null;
+    this.lastResult = empty;
+    this.lastKickVideoTime = -1;
   }
 
+  /**
+   * Non-blocking poll. Schedules worker inference when idle + new video frame.
+   * Always returns the latest completed landmarks (may lag 1 frame — intentional).
+   */
   detect(video: HTMLVideoElement): TrackedHands {
-    if (!this.landmarker || !this.running || video.readyState < 2) {
-      return { left: null, right: null, hands: [], raw: null };
+    if (!this.isReady || !this.running || !this.worker || video.readyState < 2) {
+      return this.running ? this.lastResult : empty;
     }
 
     const t = video.currentTime;
-    // Same decoded frame — reuse last result so callers don't think hands vanished
-    if (t === this.lastVideoTime) {
-      return this.lastResult;
-    }
-    this.lastVideoTime = t;
-
-    const result = this.landmarker.detectForVideo(video, performance.now());
-    let left: Landmark[] | null = null;
-    let right: Landmark[] | null = null;
-    const ordered: Landmark[][] = [];
-
-    const hands = result.landmarks ?? [];
-    const handedness = result.handednesses ?? [];
-
-    for (let i = 0; i < hands.length; i++) {
-      const label = handedness[i]?.[0]?.categoryName ?? '';
-      const pts = hands[i].map((p) => ({ x: p.x, y: p.y, z: p.z }));
-      ordered.push(pts);
-      if (label === 'Left') left = pts;
-      else if (label === 'Right') right = pts;
-      else if (!left) left = pts;
-      else right = pts;
+    if (!this.inFlight && t !== this.lastKickVideoTime) {
+      this.lastKickVideoTime = t;
+      this.inFlight = true;
+      const timestamp = performance.now();
+      createImageBitmap(video)
+        .then((bitmap) => {
+          if (!this.worker || !this.running) {
+            bitmap.close();
+            this.inFlight = false;
+            return;
+          }
+          this.worker.postMessage({ type: 'detect', bitmap, timestamp }, [bitmap]);
+        })
+        .catch((err) => {
+          this.inFlight = false;
+          console.warn('[HoloPinch] createImageBitmap failed', err);
+        });
     }
 
-    this.lastResult = { left, right, hands: ordered, raw: result };
     return this.lastResult;
   }
 
-  /** Unordered landmark arrays from the last detect (0–2 hands). */
   listHands(): Landmark[][] {
     return this.lastResult.hands;
   }
 
   get ready(): boolean {
-    return !!this.landmarker;
+    return this.isReady;
+  }
+
+  dispose(): void {
+    this.running = false;
+    this.worker?.postMessage({ type: 'dispose' });
+    this.worker?.terminate();
+    this.worker = null;
+    this.isReady = false;
+    this.initPromise = null;
   }
 }

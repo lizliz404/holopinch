@@ -2,44 +2,72 @@ import * as THREE from 'three';
 
 export type Landmark = { x: number; y: number; z: number };
 
+/** Max non-indexed vertices for dynamic loft (4 tips × 14 segs × 4 tris × 3 + caps). */
+export const LOFT_MAX_VERTS = 2048;
+/** Max line endpoints for procedural wire (pairs stored sequentially). */
+export const WIRE_MAX_POINTS = 512;
+
 /** Map normalized landmark → Three scene coords. */
 export function landmarkToScene(
   p: Landmark,
   aspect: number,
   mirrorX: boolean,
+  out = new THREE.Vector3(),
 ): THREE.Vector3 {
   const xN = mirrorX ? 1 - p.x : p.x;
   const x = (xN - 0.5) * 2 * aspect;
   const y = -(p.y - 0.5) * 2;
   const z = -p.z * 2.5;
-  return new THREE.Vector3(x, y, z);
+  return out.set(x, y, z);
 }
 
-function pushTri(
-  positions: number[],
-  normals: number[],
-  loftUs: number[],
+function writeTri(
+  positions: Float32Array,
+  normals: Float32Array,
+  loftUs: Float32Array,
+  vi: number,
   p0: THREE.Vector3,
   p1: THREE.Vector3,
   p2: THREE.Vector3,
   u0: number,
   u1: number,
   u2: number,
-): void {
-  const e1 = new THREE.Vector3().subVectors(p1, p0);
-  const e2 = new THREE.Vector3().subVectors(p2, p0);
-  const nn = new THREE.Vector3().crossVectors(e1, e2);
-  if (nn.lengthSq() < 1e-12) return;
-  nn.normalize();
-  positions.push(p0.x, p0.y, p0.z, p1.x, p1.y, p1.z, p2.x, p2.y, p2.z);
-  for (let k = 0; k < 3; k++) normals.push(nn.x, nn.y, nn.z);
-  loftUs.push(u0, u1, u2);
+  scratchE1: THREE.Vector3,
+  scratchE2: THREE.Vector3,
+  scratchN: THREE.Vector3,
+): number {
+  scratchE1.subVectors(p1, p0);
+  scratchE2.subVectors(p2, p0);
+  scratchN.crossVectors(scratchE1, scratchE2);
+  if (scratchN.lengthSq() < 1e-12) return vi;
+  scratchN.normalize();
+  if (vi + 3 > LOFT_MAX_VERTS) return vi;
+  let o = vi * 3;
+  positions[o] = p0.x;
+  positions[o + 1] = p0.y;
+  positions[o + 2] = p0.z;
+  positions[o + 3] = p1.x;
+  positions[o + 4] = p1.y;
+  positions[o + 5] = p1.z;
+  positions[o + 6] = p2.x;
+  positions[o + 7] = p2.y;
+  positions[o + 8] = p2.z;
+  for (let k = 0; k < 3; k++) {
+    const no = (vi + k) * 3;
+    normals[no] = scratchN.x;
+    normals[no + 1] = scratchN.y;
+    normals[no + 2] = scratchN.z;
+  }
+  loftUs[vi] = u0;
+  loftUs[vi + 1] = u1;
+  loftUs[vi + 2] = u2;
+  return vi + 3;
 }
 
-function ringCentroid(ring: THREE.Vector3[]): THREE.Vector3 {
-  const c = new THREE.Vector3();
-  for (const p of ring) c.add(p);
-  return c.multiplyScalar(1 / Math.max(ring.length, 1));
+function ringCentroid(ring: THREE.Vector3[], out = new THREE.Vector3()): THREE.Vector3 {
+  out.set(0, 0, 0);
+  for (const p of ring) out.add(p);
+  return out.multiplyScalar(1 / Math.max(ring.length, 1));
 }
 
 /** Order a ring CCW around its centroid as seen from +viewDir. */
@@ -72,18 +100,37 @@ export type LoftOpts = {
   bulgeScale?: number;
 };
 
+const _e1 = new THREE.Vector3();
+const _e2 = new THREE.Vector3();
+const _n = new THREE.Vector3();
+const _lc = new THREE.Vector3();
+const _rc = new THREE.Vector3();
+const _spanVec = new THREE.Vector3();
+const _spanDir = new THREE.Vector3();
+const _center = new THREE.Vector3();
+const _base = new THREE.Vector3();
+const _radial = new THREE.Vector3();
+const _up = new THREE.Vector3(0, 1, 0);
+const _ridgeAxis = new THREE.Vector3();
+const _camAxis = new THREE.Vector3();
+const _mid = new THREE.Vector3();
+const _approxN = new THREE.Vector3();
+const _capC = new THREE.Vector3();
+
 /**
- * Dynamic loft solid between two hand sections.
- * Continuous growth: span + bulgeScale drive segment count + mid bulge + ridge.
+ * Write dynamic loft into preallocated buffers. Returns vertex count.
+ * Topology is fixed-capacity; draw with setDrawRange(0, vertexCount).
  */
-export function buildDynamicLoft(
+export function writeDynamicLoft(
   leftIn: THREE.Vector3[],
   rightIn: THREE.Vector3[],
-  opts?: LoftOpts,
-): THREE.BufferGeometry {
-  const geo = new THREE.BufferGeometry();
+  opts: LoftOpts | undefined,
+  positions: Float32Array,
+  normals: Float32Array,
+  loftUs: Float32Array,
+): { vertexCount: number; segments: number } {
   const n = Math.min(leftIn.length, rightIn.length);
-  if (n < 2) return geo;
+  if (n < 2) return { vertexCount: 0, segments: 0 };
 
   const left = leftIn.slice(0, n);
   const right = rightIn.slice(0, n);
@@ -92,55 +139,46 @@ export function buildDynamicLoft(
   const maxSeg = opts?.maxSegments ?? 12;
   const bulgeScale = opts?.bulgeScale ?? 1;
 
-  const lc = ringCentroid(left);
-  const rc = ringCentroid(right);
-  const spanVec = new THREE.Vector3().subVectors(rc, lc);
-  const span = spanVec.length();
-  const spanDir =
-    span > 1e-6 ? spanVec.clone().normalize() : new THREE.Vector3(1, 0, 0);
+  ringCentroid(left, _lc);
+  ringCentroid(right, _rc);
+  _spanVec.subVectors(_rc, _lc);
+  const span = _spanVec.length();
+  if (span > 1e-6) _spanDir.copy(_spanVec).multiplyScalar(1 / span);
+  else _spanDir.set(1, 0, 0);
 
   const segments = Math.round(
     THREE.MathUtils.clamp(minSeg + span * 5.5 * bulgeScale, minSeg, maxSeg),
   );
 
-  const positions: number[] = [];
-  const normals: number[] = [];
-  const loftUs: number[] = [];
-
   const rings: THREE.Vector3[][] = [];
   for (let s = 0; s <= segments; s++) {
     const t = s / segments;
     const te = t * t * (3 - 2 * t);
-    const center = new THREE.Vector3().lerpVectors(lc, rc, te);
+    _center.lerpVectors(_lc, _rc, te);
     const ring: THREE.Vector3[] = [];
     const bulge = Math.sin(Math.PI * t) * (0.06 + span * 0.08) * bulgeScale;
-    const up = new THREE.Vector3(0, 1, 0);
-    let ridgeAxis = new THREE.Vector3().crossVectors(spanDir, up);
-    if (ridgeAxis.lengthSq() < 1e-8) {
-      ridgeAxis = new THREE.Vector3().crossVectors(
-        spanDir,
-        new THREE.Vector3(0, 0, 1),
-      );
+    _ridgeAxis.crossVectors(_spanDir, _up);
+    if (_ridgeAxis.lengthSq() < 1e-8) {
+      _ridgeAxis.crossVectors(_spanDir, _n.set(0, 0, 1));
     }
-    ridgeAxis.normalize();
-    const camAxis = new THREE.Vector3()
-      .crossVectors(spanDir, ridgeAxis)
-      .normalize();
+    _ridgeAxis.normalize();
+    _camAxis.crossVectors(_spanDir, _ridgeAxis).normalize();
 
     for (let i = 0; i < n; i++) {
-      const base = new THREE.Vector3().lerpVectors(left[i], right[i], te);
-      const radial = new THREE.Vector3().subVectors(base, center);
-      const rLen = radial.length();
+      _base.lerpVectors(left[i], right[i], te);
+      _radial.subVectors(_base, _center);
+      const rLen = _radial.length();
       if (rLen > 1e-8) {
-        base.addScaledVector(radial.multiplyScalar(1 / rLen), bulge);
+        _base.addScaledVector(_radial.multiplyScalar(1 / rLen), bulge);
       }
       const ridge = Math.sin((i / n) * Math.PI * 2) * bulge * 0.85;
-      base.addScaledVector(camAxis, ridge);
-      ring.push(base);
+      _base.addScaledVector(_camAxis, ridge);
+      ring.push(_base.clone());
     }
     rings.push(ring);
   }
 
+  let vi = 0;
   for (let s = 0; s < segments; s++) {
     const a = rings[s];
     const b = rings[s + 1];
@@ -153,126 +191,122 @@ export function buildDynamicLoft(
       const p10 = b[i];
       const p11 = b[j];
       const p01 = a[j];
-      const mid = new THREE.Vector3()
-        .add(p00)
-        .add(p10)
-        .add(p11)
-        .add(p01)
-        .multiplyScalar(0.25);
-      const approxN = new THREE.Vector3()
-        .subVectors(p10, p00)
-        .cross(new THREE.Vector3().subVectors(p01, p00));
-      if (approxN.lengthSq() > 1e-10) {
-        mid.addScaledVector(
-          approxN.normalize(),
+      _mid.set(0, 0, 0).add(p00).add(p10).add(p11).add(p01).multiplyScalar(0.25);
+      _approxN.subVectors(p10, p00).cross(_e2.subVectors(p01, p00));
+      if (_approxN.lengthSq() > 1e-10) {
+        _mid.addScaledVector(
+          _approxN.normalize(),
           (span * 0.01 + 0.008) * bulgeScale,
         );
       }
-      pushTri(positions, normals, loftUs, p00, p10, mid, uA, uB, uM);
-      pushTri(positions, normals, loftUs, p10, p11, mid, uB, uB, uM);
-      pushTri(positions, normals, loftUs, p11, p01, mid, uB, uA, uM);
-      pushTri(positions, normals, loftUs, p01, p00, mid, uA, uA, uM);
+      vi = writeTri(positions, normals, loftUs, vi, p00, p10, _mid, uA, uB, uM, _e1, _e2, _n);
+      vi = writeTri(positions, normals, loftUs, vi, p10, p11, _mid, uB, uB, uM, _e1, _e2, _n);
+      vi = writeTri(positions, normals, loftUs, vi, p11, p01, _mid, uB, uA, uM, _e1, _e2, _n);
+      vi = writeTri(positions, normals, loftUs, vi, p01, p00, _mid, uA, uA, uM, _e1, _e2, _n);
     }
   }
 
   if (n >= 3) {
-    const cap = (
-      ring: THREE.Vector3[],
-      outward: THREE.Vector3,
-      loftU: number,
-    ) => {
-      const c = ringCentroid(ring);
-      c.addScaledVector(outward, Math.max(span * 0.04, 0.03) * bulgeScale);
+    const cap = (ring: THREE.Vector3[], outward: THREE.Vector3, loftU: number) => {
+      ringCentroid(ring, _capC);
+      _capC.addScaledVector(outward, Math.max(span * 0.04, 0.03) * bulgeScale);
       for (let i = 0; i < n; i++) {
         const j = (i + 1) % n;
-        pushTri(
+        vi = writeTri(
           positions,
           normals,
           loftUs,
-          c,
+          vi,
+          _capC,
           ring[i],
           ring[j],
           loftU,
           loftU,
           loftU,
+          _e1,
+          _e2,
+          _n,
         );
       }
     };
-    cap(rings[0], spanDir.clone().negate(), 0);
-    cap(rings[rings.length - 1], spanDir, 1);
+    cap(rings[0], _e1.copy(_spanDir).negate(), 0);
+    cap(rings[rings.length - 1], _spanDir, 1);
   }
 
-  geo.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
-  geo.setAttribute('normal', new THREE.Float32BufferAttribute(normals, 3));
-  geo.setAttribute('loftU', new THREE.Float32BufferAttribute(loftUs, 1));
-  return geo;
+  return { vertexCount: vi, segments };
 }
 
-/** Flat card: two tris from 4 ordered pinch corners + loftU across span. */
-export function buildFlatQuad(corners: THREE.Vector3[]): THREE.BufferGeometry {
-  const geo = new THREE.BufferGeometry();
-  if (corners.length < 4) return geo;
-
-  // Expect [L-thumb, L-index, R-index, R-thumb] — order CCW for stable winding
+/** Flat card into preallocated buffers. */
+export function writeFlatQuad(
+  corners: THREE.Vector3[],
+  positions: Float32Array,
+  normals: Float32Array,
+  loftUs: Float32Array,
+): number {
+  if (corners.length < 4) return 0;
   const ordered = orderRingCCW(corners.slice(0, 4));
   const [p0, p1, p2, p3] = ordered;
-  const positions: number[] = [];
-  const normals: number[] = [];
-  const loftUs: number[] = [];
-
-  // loftU: left side ~0, right ~1 based on x of centroid
   const cx = (p0.x + p1.x + p2.x + p3.x) / 4;
   const uOf = (p: THREE.Vector3) =>
     THREE.MathUtils.clamp(0.5 + (p.x - cx) * 0.8, 0, 1);
-
-  pushTri(
-    positions,
-    normals,
-    loftUs,
-    p0,
-    p1,
-    p2,
-    uOf(p0),
-    uOf(p1),
-    uOf(p2),
-  );
-  pushTri(
-    positions,
-    normals,
-    loftUs,
-    p0,
-    p2,
-    p3,
-    uOf(p0),
-    uOf(p2),
-    uOf(p3),
-  );
-
-  geo.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
-  geo.setAttribute('normal', new THREE.Float32BufferAttribute(normals, 3));
-  geo.setAttribute('loftU', new THREE.Float32BufferAttribute(loftUs, 1));
-  return geo;
+  let vi = 0;
+  vi = writeTri(positions, normals, loftUs, vi, p0, p1, p2, uOf(p0), uOf(p1), uOf(p2), _e1, _e2, _n);
+  vi = writeTri(positions, normals, loftUs, vi, p0, p2, p3, uOf(p0), uOf(p2), uOf(p3), _e1, _e2, _n);
+  return vi;
 }
 
-/** Perimeter LineLoop positions from ordered corners. */
-export function buildPerimeterLoop(
-  corners: THREE.Vector3[],
-): THREE.BufferGeometry {
-  const ordered = orderRingCCW(corners.slice(0, 4));
-  const pts: number[] = [];
-  for (const p of ordered) pts.push(p.x, p.y, p.z);
-  if (ordered.length) {
-    pts.push(ordered[0].x, ordered[0].y, ordered[0].z);
+function pushLine(
+  positions: Float32Array,
+  pi: number,
+  a: THREE.Vector3,
+  b: THREE.Vector3,
+): number {
+  if (pi + 2 > WIRE_MAX_POINTS) return pi;
+  let o = pi * 3;
+  positions[o] = a.x;
+  positions[o + 1] = a.y;
+  positions[o + 2] = a.z;
+  positions[o + 3] = b.x;
+  positions[o + 4] = b.y;
+  positions[o + 5] = b.z;
+  return pi + 2;
+}
+
+/** Procedural wire: end-ring edges + tip longitudes (no EdgesGeometry). */
+export function writeLoftWire(
+  left: THREE.Vector3[],
+  right: THREE.Vector3[],
+  positions: Float32Array,
+  withInternal: boolean,
+): number {
+  const n = Math.min(left.length, right.length);
+  if (n < 2) return 0;
+  let pi = 0;
+  for (let i = 0; i < n; i++) {
+    const j = (i + 1) % n;
+    pi = pushLine(positions, pi, left[i], left[j]);
+    pi = pushLine(positions, pi, right[i], right[j]);
+    if (withInternal) pi = pushLine(positions, pi, left[i], right[i]);
   }
-  const geo = new THREE.BufferGeometry();
-  geo.setAttribute('position', new THREE.Float32BufferAttribute(pts, 3));
-  return geo;
+  return pi;
+}
+
+/** Perimeter only wire from 4 corners. */
+export function writePerimeterWire(
+  corners: THREE.Vector3[],
+  positions: Float32Array,
+): number {
+  if (corners.length < 4) return 0;
+  const ordered = orderRingCCW(corners.slice(0, 4));
+  let pi = 0;
+  for (let i = 0; i < 4; i++) {
+    pi = pushLine(positions, pi, ordered[i], ordered[(i + 1) % 4]);
+  }
+  return pi;
 }
 
 /**
  * Hand cross-section from finger tips — shape follows live spread.
- * Ordered CCW so loft doesn't bow-tie.
- * When tips are nearly coplanar/thin, prefer strict 4 tips (thumb+index+middle+ring).
  */
 export function handSectionFromLandmarks(
   hand: Landmark[],
