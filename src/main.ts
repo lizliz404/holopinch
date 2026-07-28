@@ -24,13 +24,24 @@ const btnAbout = document.querySelector<HTMLButtonElement>('#btn-about')!;
 const aboutPanel = document.querySelector<HTMLDivElement>('#about-panel')!;
 const aboutBackdrop = document.querySelector<HTMLDivElement>('#about-backdrop')!;
 
-const debugTelemetry = new URLSearchParams(location.search).get('debug') === '1';
+const params = new URLSearchParams(location.search);
+const debugTelemetry = params.get('debug') === '1';
+/** Auto-play card→bar continuum for social motion capture (no camera). */
+const motionCapture = params.get('motion') === '1';
+/** Hide chrome for cleaner recordings. */
+const cleanCapture = params.get('clean') === '1' || motionCapture;
 const isCoarsePointer = window.matchMedia('(pointer: coarse)').matches;
 const DEMO_STATUS = isCoarsePointer
   ? 'Demo — drag orbs · two-finger vertical = pinch open · two-finger horizontal = finger spread'
   : 'Demo — drag orbs · scroll = pinch open · Shift+scroll = finger spread';
 
 const demo = new DemoHands(app);
+
+if (cleanCapture) {
+  document.documentElement.classList.add('capture-clean');
+  hud.classList.add('capture-hidden');
+  btnAbout.classList.add('capture-hidden');
+}
 
 function showWebGlFallback(): void {
   const msg = document.createElement('div');
@@ -237,12 +248,29 @@ function paintLabels(
   }
 }
 
+/** 5s loop: hands settle → card → crystal bar → angles readable → reset. */
+function driveMotionCapture(nowMs: number): void {
+  const t = (nowMs % 5000) / 5000;
+  // Ease in-out along continuum
+  const wave = 0.5 - 0.5 * Math.cos(t * Math.PI * 2);
+  // 0..0.45 card-ish, 0.45..1 bar-ish
+  const bar = Math.min(1, Math.max(0, (wave - 0.15) / 0.7));
+  const midX = 0.5;
+  const half = 0.12 + bar * 0.2;
+  const y = 0.52 + Math.sin(t * Math.PI * 2) * 0.02;
+  demo.pinch.left = { x: midX - half, y: y + 0.01 };
+  demo.pinch.right = { x: midX + half, y: y - 0.01 };
+  demo.pinch.open = 0.07 + bar * 0.16;
+  demo.pinch.spread = 0.35 + bar * 0.75;
+}
+
 function frame(): void {
   let left = null as ReturnType<typeof demo.toLandmarks>['left'] | null;
   let right = null as ReturnType<typeof demo.toLandmarks>['right'] | null;
   let mirrorX = false;
 
   if (inputMode === 'demo') {
+    if (motionCapture) driveMotionCapture(performance.now());
     const d = demo.toLandmarks();
     left = d.left;
     right = d.right;
@@ -318,6 +346,11 @@ scene.setShadeMode('hybrid');
 scene.setShowWire(true);
 chipShade.textContent = SHADE_LABEL.hybrid;
 setInputMode('demo');
+if (motionCapture) {
+  showAngles = true;
+  setChip(chipAngles, true);
+  setStatus('hold light');
+}
 scene.resize();
 requestAnimationFrame(frame);
 }

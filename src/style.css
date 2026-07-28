@@ -384,6 +384,29 @@ button.primary:hover {
   font-size: 14px;
 }
 
+/* Social / README capture: stage only */
+html.capture-clean #topbar .tagline,
+html.capture-clean .capture-hidden,
+.capture-hidden {
+  display: none !important;
+}
+
+html.capture-clean #topbar {
+  left: 50%;
+  transform: translateX(-50%);
+  text-align: center;
+  max-width: none;
+}
+
+html.capture-clean #topbar .brand {
+  font-size: clamp(1.5rem, 5vw, 2rem);
+  letter-spacing: -0.04em;
+}
+
+html.capture-clean .demo-handle {
+  opacity: 0.35;
+}
+
 @media (max-width: 480px) {
   #topbar .tagline {
     display: none;
