@@ -49,9 +49,11 @@ const DEMO_STATUS_FULL = isCoarsePointer
 const DEMO_STATUS_SHORT = 'Demo';
 const START_STATUS_FULL = 'Start camera — or drag the light';
 const START_STATUS_SHORT = 'Start camera';
-// Deploy stamp: force fresh asset hashes after custom-domain Origin cache poison.
-const DEPLOY_STAMP = 'worker-pool-v1';
-void DEPLOY_STAMP;
+/** Keep in emitted JS so Cloudflare custom-domain asset URLs rotate after cache poison. */
+const BUILD_ID = 'worker-pool-2026-07-28b';
+if (typeof document !== 'undefined') {
+  document.documentElement.dataset.build = BUILD_ID;
+}
 
 const demo = new DemoHands(app);
 
