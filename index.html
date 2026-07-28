@@ -6,7 +6,7 @@
     <title>HoloPinch — Hold a hologram between your hands</title>
     <meta
       name="description"
-      content="Browser AR toy: pinch with both hands and a living holographic mesh appears between them. MediaPipe + WebGL. No app install."
+      content="Browser AR toy: pinch with your hands and a living holographic mesh appears between them. MediaPipe + WebGL. No app install."
     />
     <link rel="canonical" href="https://holopinch.lizliz.xyz/" />
     <meta name="robots" content="index,follow" />
@@ -25,7 +25,7 @@
     <meta property="og:title" content="HoloPinch — Hold a hologram between your hands" />
     <meta
       property="og:description"
-      content="Browser AR toy: pinch with both hands and a living holographic mesh appears between them. MediaPipe + WebGL. No app install."
+      content="Browser AR toy: pinch with your hands and a living holographic mesh appears between them. MediaPipe + WebGL. No app install."
     />
     <meta property="og:image" content="https://holopinch.lizliz.xyz/og.png" />
     <meta property="og:image:width" content="1200" />
@@ -35,7 +35,7 @@
     <meta name="twitter:title" content="HoloPinch — Hold a hologram between your hands" />
     <meta
       name="twitter:description"
-      content="Browser AR toy: pinch with both hands and a living holographic mesh appears between them. MediaPipe + WebGL. No app install."
+      content="Browser AR toy: pinch with your hands and a living holographic mesh appears between them. MediaPipe + WebGL. No app install."
     />
     <meta name="twitter:image" content="https://holopinch.lizliz.xyz/og.png" />
 
@@ -69,55 +69,43 @@
       <video id="video" playsinline muted></video>
       <canvas id="overlay"></canvas>
 
-      <header id="topbar">
+      <header id="topbar" data-brand="loading">
         <div class="brand">HoloPinch</div>
         <p class="tagline">Hold light between your hands. No app. Just a browser.</p>
       </header>
 
-      <button
-        id="btn-about"
-        type="button"
-        aria-expanded="false"
-        aria-controls="about-panel"
-        title="About"
-      >
-        ?
-      </button>
-
       <div id="about-backdrop" class="hidden" aria-hidden="true"></div>
       <aside id="about-panel" class="hidden" role="dialog" aria-label="About HoloPinch">
-        <h2>About HoloPinch</h2>
+        <h2>HoloPinch</h2>
 
-        <h3>What it is</h3>
+        <h3>What</h3>
         <p>
-          HoloPinch is a browser AR toy — <strong>hold light</strong> between your hands. Pinch the
-          air and a living holographic solid appears — MediaPipe hand tracking, WebGL. No app
-          install, no account, no backend.
+          Hold light between your fingers. A live hologram mesh — camera in the browser. No app, no
+          account, no backend.
         </p>
 
-        <h3>How to play</h3>
+        <h3>Play</h3>
         <p>
-          Camera starts automatically — show a hand (or both) and pinch or spread your fingers. Two
-          hands give the best mesh; one hand splits thumb+index vs middle+ring. Move apart / spread
-          to grow a translucent crystal bar; bring close and flat for an opaque foil card. No camera?
-          Demo mode: drag the orbs (touch: two-finger gestures).
+          Camera starts itself. Show one or both hands; pinch or spread. Closer + flat → foil card.
+          Farther + open → crystal bar. Best with two hands. No camera? Open controls → Demo, drag
+          the orbs.
         </p>
 
-        <h3>The angle game</h3>
-        <p>Toggle Angles/Guess to guess the interior angles of your pinch quad.</p>
+        <h3>Angles</h3>
+        <p>Turn on Angles / Guess to read or guess the pinch quad’s interior angles.</p>
 
         <h3>Tech</h3>
         <p>
-          Vite + TypeScript + three.js + MediaPipe HandLandmarker. One continuous
-          <code>flatness</code> scalar drives opacity, edges, and film — no mode switch.
+          MediaPipe HandLandmarker + WebGL + three.js. One
+          <code>flatness</code> value drives opacity, edges, and foil.
         </p>
 
         <p class="about-attr">
-          Made by Liz — more at
+          Liz ·
           <a href="https://lizliz.xyz" target="_blank" rel="noopener noreferrer">lizliz.xyz</a>
           ·
           <a href="https://github.com/lizliz404/holopinch" target="_blank" rel="noopener noreferrer"
-            >Source on GitHub</a
+            >GitHub</a
           >
         </p>
       </aside>
@@ -132,10 +120,19 @@
             id="hud-toggle"
             aria-expanded="false"
             aria-controls="hud-panel"
-            title="Toggle controls"
+            title="Controls"
           >
             <span id="status" aria-live="polite">Loading…</span>
             <span class="hud-chevron" aria-hidden="true"></span>
+          </button>
+          <button
+            type="button"
+            id="btn-about"
+            aria-expanded="false"
+            aria-controls="about-panel"
+            title="About"
+          >
+            ?
           </button>
           <button type="button" id="btn-cam-compact" class="hud-stop hidden" title="Stop camera">
             Stop
@@ -157,7 +154,7 @@
 
           <div id="guess-panel" class="hidden">
             <label>
-              Guess this angle (°)
+              Guess angle (°)
               <input id="guess-input" type="number" min="0" max="180" step="1" placeholder="°" inputmode="numeric" />
             </label>
             <button id="btn-reveal" type="button">Reveal</button>

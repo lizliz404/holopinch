@@ -7,6 +7,7 @@ import { PrismScene, type ShadeMode } from './scene';
 const app = document.querySelector<HTMLDivElement>('#app')!;
 const video = document.querySelector<HTMLVideoElement>('#video')!;
 const canvas = document.querySelector<HTMLCanvasElement>('#overlay')!;
+const topbar = document.querySelector<HTMLElement>('#topbar')!;
 const statusEl = document.querySelector<HTMLElement>('#status')!;
 const anglesReadout = document.querySelector<HTMLDivElement>('#angles-readout')!;
 const labelsRoot = document.querySelector<HTMLDivElement>('#angle-labels')!;
@@ -37,12 +38,12 @@ const motionCapture = params.get('motion') === '1';
 const cleanCapture = params.get('clean') === '1' || motionCapture;
 const skipAutoCamera = motionCapture || params.get('clean') === '1';
 const isCoarsePointer = window.matchMedia('(pointer: coarse)').matches;
-const defaultHudExpanded = window.matchMedia(
-  '(pointer: fine) and (min-width: 768px)',
-).matches;
-const DEMO_STATUS = isCoarsePointer
-  ? 'Demo — drag orbs · two-finger vertical = pinch open · two-finger horizontal = finger spread'
-  : 'Demo — drag orbs · scroll = pinch open · Shift+scroll = finger spread';
+/** Island stays collapsed by default everywhere — expand is opt-in (Dynamic Island scale). */
+const defaultHudExpanded = false;
+const DEMO_STATUS_FULL = isCoarsePointer
+  ? 'Demo — drag orbs · two-finger vertical = open · horizontal = spread'
+  : 'Demo — drag orbs · scroll = open · Shift+scroll = spread';
+const DEMO_STATUS_SHORT = 'Demo';
 
 const demo = new DemoHands(app);
 
@@ -50,7 +51,6 @@ if (cleanCapture) {
   document.documentElement.classList.add('capture-clean');
   hud.classList.add('capture-hidden');
   hudScrim.classList.add('capture-hidden');
-  btnAbout.classList.add('capture-hidden');
 }
 
 function showWebGlFallback(): void {
@@ -62,7 +62,6 @@ function showWebGlFallback(): void {
   canvas.style.display = 'none';
   hud.style.display = 'none';
   hudScrim.style.display = 'none';
-  btnAbout.style.display = 'none';
   demo.setEnabled(false);
 }
 
@@ -83,6 +82,7 @@ function startApp(scene: PrismScene): void {
 let tracker: HandTracker | null = null;
 
 type InputMode = 'demo' | 'camera';
+type BrandState = 'loading' | 'idle' | 'active';
 const SHADE_CYCLE: ShadeMode[] = ['hybrid', 'holo', 'normal'];
 const SHADE_LABEL: Record<ShadeMode, string> = {
   hybrid: 'Shade · hybrid',
@@ -106,9 +106,46 @@ let shareHintShown = false;
 let shareHintUntil = 0;
 let aboutOpen = false;
 let hudExpanded = defaultHudExpanded;
+let brandState: BrandState = 'loading';
+/** Full status for expanded island; short label for collapsed pill. */
+let statusFull = 'Loading…';
+let statusShort = 'Loading…';
 
-function setStatus(msg: string): void {
-  statusEl.textContent = msg;
+function setBrandState(next: BrandState): void {
+  if (brandState === next) return;
+  brandState = next;
+  topbar.dataset.brand = next;
+}
+
+function paintStatus(): void {
+  statusEl.textContent = hudExpanded ? statusFull : statusShort;
+  statusEl.title = statusFull;
+}
+
+function setStatus(full: string, short?: string): void {
+  statusFull = full;
+  statusShort = short ?? shortenStatus(full);
+  paintStatus();
+}
+
+function shortenStatus(full: string): string {
+  const map: [RegExp, string][] = [
+    [/loading hand model/i, 'Loading…'],
+    [/requesting camera/i, 'Camera…'],
+    [/show your hand/i, 'Show hand'],
+    [/spread fingers/i, 'Spread…'],
+    [/tracking/i, 'Tracking'],
+    [/screenshot/i, 'Snap it'],
+    [/hands lost.*fading/i, 'Fading…'],
+    [/hands lost.*holding/i, 'Holding…'],
+    [/camera blocked/i, 'Blocked'],
+    [/camera failed/i, 'Cam fail'],
+    [/^demo/i, DEMO_STATUS_SHORT],
+  ];
+  for (const [re, label] of map) {
+    if (re.test(full)) return label;
+  }
+  return full.length > 14 ? `${full.slice(0, 12)}…` : full;
 }
 
 function setChip(el: HTMLButtonElement, on: boolean): void {
@@ -137,10 +174,10 @@ function setHudExpanded(open: boolean): void {
   hudToggle.setAttribute('aria-expanded', open ? 'true' : 'false');
   if (open) hudPanel.removeAttribute('hidden');
   else hudPanel.setAttribute('hidden', '');
-  // Transparent scrim on coarse / narrow when expanded
   const useScrim = open && (isCoarsePointer || window.innerWidth < 768);
   hudScrim.classList.toggle('hidden', !useScrim);
   hudScrim.setAttribute('aria-hidden', useScrim ? 'false' : 'true');
+  paintStatus();
 }
 
 function setInputMode(mode: InputMode): void {
@@ -150,7 +187,8 @@ function setInputMode(mode: InputMode): void {
   demo.setEnabled(mode === 'demo');
   video.classList.toggle('live', mode === 'camera');
   if (mode === 'demo') {
-    setStatus(DEMO_STATUS);
+    setStatus(DEMO_STATUS_FULL, DEMO_STATUS_SHORT);
+    if (!cameraStarting) setBrandState('idle');
   }
 }
 
@@ -166,6 +204,7 @@ async function ensureTracker(): Promise<HandTracker> {
 async function enableCamera(): Promise<void> {
   if (cameraStarting) return;
   cameraStarting = true;
+  setBrandState('loading');
   btnCam.disabled = true;
   syncCamButtons();
   let acquired: MediaStream | null = null;
@@ -173,43 +212,46 @@ async function enableCamera(): Promise<void> {
     let modelDone = false;
     let camDone = false;
     const paintProgress = () => {
-      if (!modelDone) setStatus('Loading hand model…');
-      else if (!camDone) setStatus('Requesting camera…');
+      if (!modelDone) setStatus('Loading hand model…', 'Loading…');
+      else if (!camDone) setStatus('Requesting camera…', 'Camera…');
     };
     paintProgress();
 
-    // Parallel: MediaPipe WASM/model + getUserMedia (fastest permission UX)
     const tPromise = ensureTracker().then((t) => {
       modelDone = true;
       paintProgress();
       return t;
     });
 
-    const streamPromise = navigator.mediaDevices.getUserMedia({
-      video: {
-        facingMode: 'user',
-        width: { ideal: 1280 },
-        height: { ideal: 720 },
-      },
-      audio: false,
-    }).then((stream) => {
-      camDone = true;
-      paintProgress();
-      return stream;
-    });
+    const streamPromise = navigator.mediaDevices
+      .getUserMedia({
+        video: {
+          facingMode: 'user',
+          width: { ideal: 1280 },
+          height: { ideal: 720 },
+        },
+        audio: false,
+      })
+      .then((stream) => {
+        camDone = true;
+        paintProgress();
+        return stream;
+      });
 
     const [t, stream] = await Promise.all([tPromise, streamPromise]);
     acquired = stream;
     await t.adoptStream(video, stream);
 
     setInputMode('camera');
-    setStatus('Show your hand — pinch or spread fingers');
+    setStatus('Show your hand — pinch or spread fingers', 'Show hand');
+    setBrandState('idle');
   } catch (err) {
     console.error(err);
     if (acquired) {
       acquired.getTracks().forEach((tr) => tr.stop());
     }
     setInputMode('demo');
+    setBrandState('idle');
     const msg = err instanceof Error ? err.message : String(err);
     const denied =
       /NotAllowed|Permission|denied/i.test(msg) ||
@@ -218,6 +260,7 @@ async function enableCamera(): Promise<void> {
       denied
         ? 'Camera blocked — allow permission, or use Demo'
         : `Camera failed: ${msg} · using Demo`,
+      denied ? 'Blocked' : 'Cam fail',
     );
   } finally {
     cameraStarting = false;
@@ -233,6 +276,7 @@ function disableCamera(): void {
   lastHandsSeen = 0;
   lastTipCount = 0;
   setInputMode('demo');
+  setBrandState('idle');
 }
 
 btnCam.addEventListener('click', () => {
@@ -280,7 +324,7 @@ btnReveal.addEventListener('click', () => {
   revealed = true;
   const guess = Number(guessInput.value);
   if (!lastAngles.length) {
-    guessResult.textContent = 'No angle yet — show your hand first';
+    guessResult.textContent = 'No angle yet — show a hand first';
     return;
   }
   const truth = lastAngles[0];
@@ -292,7 +336,8 @@ btnReveal.addEventListener('click', () => {
   }
 });
 
-btnAbout.addEventListener('click', () => {
+btnAbout.addEventListener('click', (e) => {
+  e.stopPropagation();
   setAboutOpen(!aboutOpen);
 });
 
@@ -335,9 +380,7 @@ function paintLabels(
 /** 5s loop: hands settle → card → crystal bar → angles readable → reset. */
 function driveMotionCapture(nowMs: number): void {
   const t = (nowMs % 5000) / 5000;
-  // Ease in-out along continuum
   const wave = 0.5 - 0.5 * Math.cos(t * Math.PI * 2);
-  // 0..0.45 card-ish, 0.45..1 bar-ish
   const bar = Math.min(1, Math.max(0, (wave - 0.15) / 0.7));
   const midX = 0.5;
   const half = 0.12 + bar * 0.2;
@@ -352,6 +395,7 @@ function frame(): void {
   let left = null as ReturnType<typeof demo.toLandmarks>['left'] | null;
   let right = null as ReturnType<typeof demo.toLandmarks>['right'] | null;
   let mirrorX = false;
+  let meshDriving = false;
 
   if (inputMode === 'demo') {
     if (motionCapture) driveMotionCapture(performance.now());
@@ -360,6 +404,7 @@ function frame(): void {
     right = d.right;
     mirrorX = false;
     demo.syncHandles();
+    meshDriving = true;
   } else if (tracker) {
     const det = tracker.detect(video);
     const hands = det.hands.length ? det.hands : tracker.listHands();
@@ -385,30 +430,39 @@ function frame(): void {
 
     const now = performance.now();
     const meshLive = !resolved.held && !resolved.fading && !!anchor;
+    meshDriving = !!(left && right) && (!resolved.fading || resolved.held);
 
     if (meshLive && !shareHintShown) {
       shareHintShown = true;
       shareHintUntil = now + 6000;
-      setStatus('Screenshot it — tag #HoloPinch');
+      setStatus('Screenshot it — tag #HoloPinch', 'Snap it');
     } else if (now < shareHintUntil) {
-      // keep share hint on the status line
+      // keep share hint
     } else if (!resolved.held && !resolved.fading) {
       if (!lastHandsSeen || lastTipCount === 0) {
-        setStatus('Show your hand — pinch or spread fingers');
+        setStatus('Show your hand — pinch or spread fingers', 'Show hand');
       } else if (!anchor && lastHandsSeen >= 1) {
-        setStatus('Spread fingers in frame');
+        setStatus('Spread fingers in frame', 'Spread…');
       } else {
-        setStatus('Tracking — mesh follows your fingers');
+        setStatus('Tracking — mesh follows your fingers', 'Tracking');
       }
     } else if (resolved.fading) {
-      setStatus('Hands lost — fading…');
+      setStatus('Hands lost — fading…', 'Fading…');
     } else if (resolved.held) {
-      setStatus('Hands lost — holding pose…');
+      setStatus('Hands lost — holding pose…', 'Holding…');
     }
   }
 
   const { angles, span, flatness } = scene.updateFromHands(left, right, mirrorX);
   lastAngles = angles.map((a) => a.deg);
+
+  if (cameraStarting) {
+    setBrandState('loading');
+  } else if (angles.length > 0 && meshDriving) {
+    setBrandState('active');
+  } else {
+    setBrandState('idle');
+  }
 
   if (angles.length) {
     const angText =
@@ -441,10 +495,14 @@ setInputMode('demo');
 if (motionCapture) {
   showAngles = true;
   setChip(chipAngles, true);
-  setStatus('hold light');
+  setStatus('hold light', 'hold light');
+  setBrandState('active');
 } else if (!skipAutoCamera) {
-  setStatus('Loading hand model…');
+  setStatus('Loading hand model…', 'Loading…');
+  setBrandState('loading');
   void enableCamera();
+} else {
+  setBrandState('idle');
 }
 scene.resize();
 requestAnimationFrame(frame);

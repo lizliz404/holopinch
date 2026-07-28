@@ -9,12 +9,14 @@
   --warn: #f0b429;
   --safe-bottom: env(safe-area-inset-bottom, 0px);
   --safe-top: env(safe-area-inset-top, 0px);
-  --island-bg: var(--panel);
-  --island-line: var(--line);
-  --island-blur: 14px;
+  --island-bg: rgba(12, 12, 16, 0.78);
+  --island-line: rgba(255, 255, 255, 0.12);
+  --island-blur: 16px;
   --island-radius-collapsed: 9999px;
   --island-radius-expanded: 18px;
-  --island-max-w: min(440px, calc(100vw - 20px));
+  /* Collapsed = Dynamic-Island scale; expanded grows for controls */
+  --island-collapsed-max: min(168px, calc(100vw - 56px));
+  --island-expanded-max: min(360px, calc(100vw - 20px));
   font-family: "Inter", "Noto Sans SC", "PingFang SC", "Microsoft YaHei", system-ui, sans-serif;
 }
 
@@ -79,14 +81,19 @@ body {
   z-index: 5;
   pointer-events: none;
   max-width: min(320px, calc(100vw - 28px));
+  transition: opacity 0.55s ease;
 }
 
 #topbar .brand {
-  font-size: clamp(1.35rem, 4.2vw, 1.7rem);
+  font-size: clamp(1.2rem, 3.8vw, 1.55rem);
   font-weight: 700;
   letter-spacing: -0.03em;
   line-height: 1.1;
   text-shadow: 0 1px 12px rgba(0, 0, 0, 0.55);
+  transition:
+    opacity 0.55s ease,
+    filter 0.55s ease,
+    color 0.55s ease;
 }
 
 #topbar .tagline {
@@ -95,6 +102,67 @@ body {
   line-height: 1.35;
   color: var(--muted);
   text-shadow: 0 1px 8px rgba(0, 0, 0, 0.5);
+  transition: opacity 0.45s ease;
+}
+
+/* Idle / waiting for hands: foil-like hue drift (same family as mesh film) */
+#topbar[data-brand='idle'] .brand,
+#topbar[data-brand='loading'] .brand {
+  opacity: 0.95;
+  background: linear-gradient(
+    110deg,
+    #7dd3c0 0%,
+    #c4a0ff 28%,
+    #f0b429 52%,
+    #7ec8ff 76%,
+    #7dd3c0 100%
+  );
+  background-size: 220% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  -webkit-text-fill-color: transparent;
+  filter: drop-shadow(0 1px 10px rgba(125, 211, 192, 0.22));
+  animation: brand-holo-shift 7s ease-in-out infinite;
+}
+
+#topbar[data-brand='loading'] .brand {
+  opacity: 0.88;
+}
+
+#topbar[data-brand='loading'] .tagline {
+  opacity: 0.7;
+}
+
+/* Mesh live / algo running: get out of the way */
+#topbar[data-brand='active'] .brand {
+  opacity: 0.18;
+  color: var(--text);
+  -webkit-text-fill-color: var(--text);
+  background: none;
+  animation: none;
+  filter: none;
+  text-shadow: none;
+}
+
+#topbar[data-brand='active'] .tagline,
+#topbar[data-brand='idle'] .tagline {
+  opacity: 0;
+  height: 0;
+  margin: 0;
+  overflow: hidden;
+}
+
+@keyframes brand-holo-shift {
+  0% {
+    background-position: 0% 50%;
+  }
+  50% {
+    background-position: 100% 50%;
+  }
+  100% {
+    background-position: 0% 50%;
+  }
 }
 
 #hud-scrim {
@@ -114,31 +182,39 @@ body {
   bottom: calc(10px + var(--safe-bottom));
   transform: translateX(-50%);
   z-index: 5;
-  width: var(--island-max-w);
-  padding: 8px 12px;
+  width: max-content;
+  max-width: var(--island-collapsed-max);
+  padding: 3px 5px 3px 8px;
   border: 1px solid var(--island-line);
   border-radius: var(--island-radius-collapsed);
   background: var(--island-bg);
   backdrop-filter: blur(var(--island-blur));
+  -webkit-backdrop-filter: blur(var(--island-blur));
   display: grid;
   gap: 0;
-  font-size: 13px;
+  font-size: 12px;
+  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.35);
   transition:
+    max-width 0.24s ease,
     border-radius 0.22s ease,
-    padding 0.22s ease;
+    padding 0.22s ease,
+    box-shadow 0.22s ease;
 }
 
 #hud[data-state='expanded'] {
+  width: var(--island-expanded-max);
+  max-width: var(--island-expanded-max);
   border-radius: var(--island-radius-expanded);
-  padding: 12px 14px 14px;
-  gap: 10px;
+  padding: 10px 12px 12px;
+  gap: 8px;
+  box-shadow: 0 10px 32px rgba(0, 0, 0, 0.4);
 }
 
 .hud-bar {
   display: flex;
   align-items: center;
-  gap: 8px;
-  min-height: 32px;
+  gap: 4px;
+  min-height: 28px;
 }
 
 #hud-toggle {
@@ -146,14 +222,15 @@ body {
   min-width: 0;
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 6px 8px;
+  gap: 6px;
+  padding: 4px 6px;
   border: none;
   background: transparent;
   border-radius: 999px;
   text-align: left;
   cursor: pointer;
   color: inherit;
+  min-height: 28px;
 }
 
 #hud-toggle:hover {
@@ -165,19 +242,25 @@ body {
   flex: 1;
   min-width: 0;
   color: var(--muted);
-  line-height: 1.35;
-  font-size: 12px;
+  line-height: 1.2;
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.01em;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 
+#hud[data-state='expanded'] #status {
+  font-size: 12px;
+}
+
 .hud-chevron {
   flex-shrink: 0;
-  width: 18px;
-  height: 18px;
+  width: 14px;
+  height: 14px;
   position: relative;
-  opacity: 0.7;
+  opacity: 0.65;
 }
 
 .hud-chevron::before {
@@ -185,10 +268,10 @@ body {
   position: absolute;
   left: 50%;
   top: 50%;
-  width: 7px;
-  height: 7px;
-  border-right: 2px solid var(--muted);
-  border-bottom: 2px solid var(--muted);
+  width: 6px;
+  height: 6px;
+  border-right: 1.5px solid var(--muted);
+  border-bottom: 1.5px solid var(--muted);
   transform: translate(-50%, -65%) rotate(45deg);
   transition: transform 0.22s ease;
 }
@@ -197,16 +280,43 @@ body {
   transform: translate(-50%, -25%) rotate(225deg);
 }
 
+/* About chip — island citizen, not corner chrome */
+#btn-about {
+  flex-shrink: 0;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border-radius: 999px;
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1;
+  color: var(--muted);
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid transparent;
+}
+
+#btn-about:hover {
+  border-color: rgba(255, 255, 255, 0.2);
+  color: var(--text);
+}
+
+#btn-about[aria-expanded='true'] {
+  color: var(--accent);
+  border-color: rgba(125, 211, 192, 0.55);
+  background: rgba(125, 211, 192, 0.12);
+}
+
 .hud-stop {
   flex-shrink: 0;
-  padding: 7px 12px;
+  padding: 0 10px;
+  height: 28px;
   border-radius: 999px;
-  font-size: 12px;
+  font-size: 11px;
   font-weight: 600;
   color: #d8fff5;
-  border-color: rgba(125, 211, 192, 0.45);
-  background: rgba(125, 211, 192, 0.14);
-  min-height: 36px;
+  border-color: rgba(125, 211, 192, 0.4);
+  background: rgba(125, 211, 192, 0.12);
+  min-height: 28px;
 }
 
 .hud-stop.hidden {
@@ -215,7 +325,7 @@ body {
 
 #hud-panel {
   display: grid;
-  gap: 10px;
+  gap: 8px;
 }
 
 #hud-panel[hidden] {
@@ -256,8 +366,8 @@ button:disabled {
 
 button.primary {
   width: 100%;
-  padding: 14px 16px;
-  font-size: 15px;
+  padding: 12px 14px;
+  font-size: 14px;
   font-weight: 600;
   letter-spacing: 0.01em;
   border-color: rgba(125, 211, 192, 0.45);
@@ -282,7 +392,7 @@ button.primary:hover {
 }
 
 .chip {
-  padding: 7px 11px;
+  padding: 6px 10px;
   border-radius: 999px;
   font-size: 12px;
   color: var(--muted);
@@ -309,6 +419,7 @@ button.primary:hover {
   display: grid;
   gap: 6px;
   color: var(--muted);
+  font-size: 12px;
 }
 
 #guess-panel input[type='number'] {
@@ -373,28 +484,6 @@ button.primary:hover {
   border-color: #f0b429;
 }
 
-#btn-about {
-  position: absolute;
-  right: 14px;
-  top: calc(12px + var(--safe-top));
-  z-index: 8;
-  width: 36px;
-  height: 36px;
-  padding: 0;
-  border-radius: 10px;
-  font-size: 16px;
-  font-weight: 600;
-  line-height: 1;
-  color: var(--muted);
-  background: var(--panel);
-  backdrop-filter: blur(14px);
-}
-
-#btn-about[aria-expanded='true'] {
-  color: var(--accent);
-  border-color: rgba(125, 211, 192, 0.55);
-}
-
 #about-backdrop {
   position: absolute;
   inset: 0;
@@ -412,10 +501,10 @@ button.primary:hover {
   top: 50%;
   transform: translate(-50%, -50%);
   z-index: 10;
-  width: min(420px, calc(100vw - 28px));
+  width: min(380px, calc(100vw - 28px));
   max-height: min(78vh, calc(100% - 48px));
   overflow: auto;
-  padding: 18px 18px 16px;
+  padding: 16px 16px 14px;
   border: 1px solid var(--line);
   border-radius: 16px;
   background: var(--panel);
@@ -429,17 +518,17 @@ button.primary:hover {
 }
 
 #about-panel h2 {
-  margin: 0 0 12px;
-  font-size: 1.15rem;
+  margin: 0 0 10px;
+  font-size: 1.1rem;
   font-weight: 800;
   letter-spacing: -0.02em;
 }
 
 #about-panel h3 {
-  margin: 14px 0 6px;
-  font-size: 12px;
+  margin: 12px 0 4px;
+  font-size: 11px;
   font-weight: 600;
-  letter-spacing: 0.04em;
+  letter-spacing: 0.05em;
   text-transform: uppercase;
   color: var(--accent);
 }
@@ -461,9 +550,9 @@ button.primary:hover {
 
 #about-panel .about-attr {
   position: sticky;
-  bottom: -16px;
-  margin: 16px -18px -16px;
-  padding: 12px 18px 14px;
+  bottom: -14px;
+  margin: 14px -16px -14px;
+  padding: 10px 16px 12px;
   border-top: 1px solid var(--line);
   border-radius: 0 0 16px 16px;
   background: rgb(12, 12, 16);
@@ -512,15 +601,56 @@ html.capture-clean #topbar {
 html.capture-clean #topbar .brand {
   font-size: clamp(1.5rem, 5vw, 2rem);
   letter-spacing: -0.04em;
+  opacity: 0.95 !important;
+  animation: none !important;
+  color: var(--text) !important;
+  -webkit-text-fill-color: var(--text) !important;
+  background: none !important;
 }
 
 html.capture-clean .demo-handle {
   opacity: 0.35;
 }
 
+/* Desktop: slightly roomier collapsed pill, still not a fat dock */
+@media (pointer: fine) and (min-width: 768px) {
+  :root {
+    --island-collapsed-max: min(200px, calc(100vw - 48px));
+    --island-expanded-max: min(400px, calc(100vw - 24px));
+  }
+
+  #hud {
+    padding: 4px 6px 4px 10px;
+  }
+
+  .hud-bar {
+    min-height: 30px;
+  }
+
+  #btn-about,
+  .hud-stop {
+    width: 30px;
+    height: 30px;
+  }
+
+  .hud-stop {
+    width: auto;
+    padding: 0 11px;
+  }
+}
+
 @media (max-width: 480px) {
   #topbar .tagline {
     display: none;
+  }
+
+  #topbar {
+    left: 12px;
+    top: calc(10px + var(--safe-top));
+  }
+
+  #topbar .brand {
+    font-size: 1.15rem;
   }
 
   #hud {
@@ -530,12 +660,12 @@ html.capture-clean .demo-handle {
   #hud[data-state='expanded'] {
     padding: 10px 12px 12px;
     gap: 8px;
-    max-height: min(42vh, 360px);
+    max-height: min(40vh, 340px);
     overflow: auto;
   }
 
   button.primary {
-    padding: 13px 14px;
+    padding: 12px 14px;
   }
 
   .demo-handle {
@@ -543,16 +673,23 @@ html.capture-clean .demo-handle {
     height: 42px;
     margin: -21px 0 0 -21px;
   }
-
-  #btn-about {
-    width: 40px;
-    height: 40px;
-  }
 }
 
 @media (prefers-reduced-motion: reduce) {
   #hud,
-  .hud-chevron::before {
+  .hud-chevron::before,
+  #topbar,
+  #topbar .brand,
+  #topbar .tagline {
     transition: none;
+  }
+
+  #topbar[data-brand='idle'] .brand,
+  #topbar[data-brand='loading'] .brand {
+    animation: none;
+    /* Static foil tint instead of cycling */
+    background: linear-gradient(110deg, #9ae0d2, #c4a0ff 55%, #f0b429);
+    -webkit-background-clip: text;
+    background-clip: text;
   }
 }
