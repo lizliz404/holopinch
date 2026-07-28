@@ -97,9 +97,10 @@
 
         <h3>How to play</h3>
         <p>
-          Start camera → show both hands → pinch thumb+index. Move hands apart and spread fingers to
-          grow a translucent crystal bar; bring them close and flat for an opaque foil card. No
-          camera? Demo mode: drag the orbs (touch: two-finger gestures).
+          Camera starts automatically — show a hand (or both) and pinch or spread your fingers. Two
+          hands give the best mesh; one hand splits thumb+index vs middle+ring. Move apart / spread
+          to grow a translucent crystal bar; bring close and flat for an opaque foil card. No camera?
+          Demo mode: drag the orbs (touch: two-finger gestures).
         </p>
 
         <h3>The angle game</h3>
@@ -123,27 +124,45 @@
 
       <div id="angle-labels"></div>
 
-      <footer id="hud">
-        <div id="status">Demo ready — drag the orbs, or start the camera.</div>
-        <div id="angles-readout"></div>
-
-        <button id="btn-cam" type="button" class="primary">Start camera</button>
-
-        <div class="chips" role="toolbar" aria-label="Modes">
-          <button id="btn-demo" type="button" class="chip active" aria-pressed="true">Demo</button>
-          <button id="chip-angles" type="button" class="chip active" aria-pressed="true">Angles</button>
-          <button id="chip-edges" type="button" class="chip active" aria-pressed="true">Edges</button>
-          <button id="chip-guess" type="button" class="chip" aria-pressed="false">Guess</button>
-          <button id="chip-shade" type="button" class="chip" aria-pressed="false" title="Cycle shade: hybrid → holo → normal">Shade</button>
+      <div id="hud-scrim" class="hidden" aria-hidden="true"></div>
+      <footer id="hud" data-state="collapsed">
+        <div class="hud-bar">
+          <button
+            type="button"
+            id="hud-toggle"
+            aria-expanded="false"
+            aria-controls="hud-panel"
+            title="Toggle controls"
+          >
+            <span id="status" aria-live="polite">Loading…</span>
+            <span class="hud-chevron" aria-hidden="true"></span>
+          </button>
+          <button type="button" id="btn-cam-compact" class="hud-stop hidden" title="Stop camera">
+            Stop
+          </button>
         </div>
 
-        <div id="guess-panel" class="hidden">
-          <label>
-            Guess this angle (°)
-            <input id="guess-input" type="number" min="0" max="180" step="1" placeholder="°" inputmode="numeric" />
-          </label>
-          <button id="btn-reveal" type="button">Reveal</button>
-          <div id="guess-result"></div>
+        <div id="hud-panel" hidden>
+          <div id="angles-readout"></div>
+
+          <button id="btn-cam" type="button" class="primary">Retry camera</button>
+
+          <div class="chips" role="toolbar" aria-label="Modes">
+            <button id="btn-demo" type="button" class="chip active" aria-pressed="true">Demo</button>
+            <button id="chip-angles" type="button" class="chip active" aria-pressed="true">Angles</button>
+            <button id="chip-edges" type="button" class="chip active" aria-pressed="true">Edges</button>
+            <button id="chip-guess" type="button" class="chip" aria-pressed="false">Guess</button>
+            <button id="chip-shade" type="button" class="chip" aria-pressed="false" title="Cycle shade: hybrid → holo → normal">Shade</button>
+          </div>
+
+          <div id="guess-panel" class="hidden">
+            <label>
+              Guess this angle (°)
+              <input id="guess-input" type="number" min="0" max="180" step="1" placeholder="°" inputmode="numeric" />
+            </label>
+            <button id="btn-reveal" type="button">Reveal</button>
+            <div id="guess-result"></div>
+          </div>
         </div>
       </footer>
     </div>

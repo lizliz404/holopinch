@@ -1,4 +1,5 @@
 import './style.css';
+import { resolveAnchors, type AnchorPair } from './anchors';
 import { DemoHands } from './demo';
 import type { HandTracker } from './hands';
 import { PrismScene, type ShadeMode } from './scene';
@@ -6,10 +7,11 @@ import { PrismScene, type ShadeMode } from './scene';
 const app = document.querySelector<HTMLDivElement>('#app')!;
 const video = document.querySelector<HTMLVideoElement>('#video')!;
 const canvas = document.querySelector<HTMLCanvasElement>('#overlay')!;
-const statusEl = document.querySelector<HTMLDivElement>('#status')!;
+const statusEl = document.querySelector<HTMLElement>('#status')!;
 const anglesReadout = document.querySelector<HTMLDivElement>('#angles-readout')!;
 const labelsRoot = document.querySelector<HTMLDivElement>('#angle-labels')!;
 const btnCam = document.querySelector<HTMLButtonElement>('#btn-cam')!;
+const btnCamCompact = document.querySelector<HTMLButtonElement>('#btn-cam-compact')!;
 const btnDemo = document.querySelector<HTMLButtonElement>('#btn-demo')!;
 const chipAngles = document.querySelector<HTMLButtonElement>('#chip-angles')!;
 const chipEdges = document.querySelector<HTMLButtonElement>('#chip-edges')!;
@@ -20,6 +22,9 @@ const guessInput = document.querySelector<HTMLInputElement>('#guess-input')!;
 const btnReveal = document.querySelector<HTMLButtonElement>('#btn-reveal')!;
 const guessResult = document.querySelector<HTMLDivElement>('#guess-result')!;
 const hud = document.querySelector<HTMLElement>('#hud')!;
+const hudPanel = document.querySelector<HTMLElement>('#hud-panel')!;
+const hudToggle = document.querySelector<HTMLButtonElement>('#hud-toggle')!;
+const hudScrim = document.querySelector<HTMLDivElement>('#hud-scrim')!;
 const btnAbout = document.querySelector<HTMLButtonElement>('#btn-about')!;
 const aboutPanel = document.querySelector<HTMLDivElement>('#about-panel')!;
 const aboutBackdrop = document.querySelector<HTMLDivElement>('#about-backdrop')!;
@@ -30,7 +35,11 @@ const debugTelemetry = params.get('debug') === '1';
 const motionCapture = params.get('motion') === '1';
 /** Hide chrome for cleaner recordings. */
 const cleanCapture = params.get('clean') === '1' || motionCapture;
+const skipAutoCamera = motionCapture || params.get('clean') === '1';
 const isCoarsePointer = window.matchMedia('(pointer: coarse)').matches;
+const defaultHudExpanded = window.matchMedia(
+  '(pointer: fine) and (min-width: 768px)',
+).matches;
 const DEMO_STATUS = isCoarsePointer
   ? 'Demo — drag orbs · two-finger vertical = pinch open · two-finger horizontal = finger spread'
   : 'Demo — drag orbs · scroll = pinch open · Shift+scroll = finger spread';
@@ -40,6 +49,7 @@ const demo = new DemoHands(app);
 if (cleanCapture) {
   document.documentElement.classList.add('capture-clean');
   hud.classList.add('capture-hidden');
+  hudScrim.classList.add('capture-hidden');
   btnAbout.classList.add('capture-hidden');
 }
 
@@ -51,6 +61,7 @@ function showWebGlFallback(): void {
   app.appendChild(msg);
   canvas.style.display = 'none';
   hud.style.display = 'none';
+  hudScrim.style.display = 'none';
   btnAbout.style.display = 'none';
   demo.setEnabled(false);
 }
@@ -86,15 +97,15 @@ let cameraStarting = false;
 let showAngles = true;
 let shadeMode: ShadeMode = 'hybrid';
 
-type Detected = ReturnType<HandTracker['detect']>;
-let camLeft: Detected['left'] = null;
-let camRight: Detected['right'] = null;
-let lastDetectHadLeft = false;
-let lastDetectHadRight = false;
+let camLeft: AnchorPair['left'] | null = null;
+let camRight: AnchorPair['right'] | null = null;
+let lastHandsSeen: 0 | 1 | 2 = 0;
+let lastTipCount = 0;
 
 let shareHintShown = false;
 let shareHintUntil = 0;
 let aboutOpen = false;
+let hudExpanded = defaultHudExpanded;
 
 function setStatus(msg: string): void {
   statusEl.textContent = msg;
@@ -112,11 +123,30 @@ function setAboutOpen(open: boolean): void {
   btnAbout.setAttribute('aria-expanded', open ? 'true' : 'false');
 }
 
+function syncCamButtons(): void {
+  const live = inputMode === 'camera';
+  btnCam.classList.toggle('active', live);
+  btnCam.textContent = live ? 'Stop camera' : 'Retry camera';
+  btnCamCompact.classList.toggle('hidden', !live);
+  btnCamCompact.disabled = cameraStarting;
+}
+
+function setHudExpanded(open: boolean): void {
+  hudExpanded = open;
+  hud.dataset.state = open ? 'expanded' : 'collapsed';
+  hudToggle.setAttribute('aria-expanded', open ? 'true' : 'false');
+  if (open) hudPanel.removeAttribute('hidden');
+  else hudPanel.setAttribute('hidden', '');
+  // Transparent scrim on coarse / narrow when expanded
+  const useScrim = open && (isCoarsePointer || window.innerWidth < 768);
+  hudScrim.classList.toggle('hidden', !useScrim);
+  hudScrim.setAttribute('aria-hidden', useScrim ? 'false' : 'true');
+}
+
 function setInputMode(mode: InputMode): void {
   inputMode = mode;
   setChip(btnDemo, mode === 'demo');
-  btnCam.classList.toggle('active', mode === 'camera');
-  btnCam.textContent = mode === 'camera' ? 'Stop camera' : 'Start camera';
+  syncCamButtons();
   demo.setEnabled(mode === 'demo');
   video.classList.toggle('live', mode === 'camera');
   if (mode === 'demo') {
@@ -124,23 +154,61 @@ function setInputMode(mode: InputMode): void {
   }
 }
 
+async function ensureTracker(): Promise<HandTracker> {
+  if (!tracker) {
+    const mod = await import('./hands');
+    tracker = new mod.HandTracker();
+  }
+  if (!tracker.ready) await tracker.init();
+  return tracker;
+}
+
 async function enableCamera(): Promise<void> {
   if (cameraStarting) return;
   cameraStarting = true;
   btnCam.disabled = true;
+  syncCamButtons();
+  let acquired: MediaStream | null = null;
   try {
-    setStatus('Loading hand model…');
-    if (!tracker) {
-      const mod = await import('./hands');
-      tracker = new mod.HandTracker();
-    }
-    if (!tracker.ready) await tracker.init();
-    setStatus('Requesting camera permission…');
-    await tracker.startCamera(video);
+    let modelDone = false;
+    let camDone = false;
+    const paintProgress = () => {
+      if (!modelDone) setStatus('Loading hand model…');
+      else if (!camDone) setStatus('Requesting camera…');
+    };
+    paintProgress();
+
+    // Parallel: MediaPipe WASM/model + getUserMedia (fastest permission UX)
+    const tPromise = ensureTracker().then((t) => {
+      modelDone = true;
+      paintProgress();
+      return t;
+    });
+
+    const streamPromise = navigator.mediaDevices.getUserMedia({
+      video: {
+        facingMode: 'user',
+        width: { ideal: 1280 },
+        height: { ideal: 720 },
+      },
+      audio: false,
+    }).then((stream) => {
+      camDone = true;
+      paintProgress();
+      return stream;
+    });
+
+    const [t, stream] = await Promise.all([tPromise, streamPromise]);
+    acquired = stream;
+    await t.adoptStream(video, stream);
+
     setInputMode('camera');
-    setStatus('Camera on — show both hands and pinch');
+    setStatus('Show your hand — pinch or spread fingers');
   } catch (err) {
     console.error(err);
+    if (acquired) {
+      acquired.getTracks().forEach((tr) => tr.stop());
+    }
     setInputMode('demo');
     const msg = err instanceof Error ? err.message : String(err);
     const denied =
@@ -154,6 +222,7 @@ async function enableCamera(): Promise<void> {
   } finally {
     cameraStarting = false;
     btnCam.disabled = false;
+    syncCamButtons();
   }
 }
 
@@ -161,14 +230,18 @@ function disableCamera(): void {
   tracker?.stopCamera(video);
   camLeft = null;
   camRight = null;
-  lastDetectHadLeft = false;
-  lastDetectHadRight = false;
+  lastHandsSeen = 0;
+  lastTipCount = 0;
   setInputMode('demo');
 }
 
 btnCam.addEventListener('click', () => {
   if (inputMode === 'camera') disableCamera();
   else void enableCamera();
+});
+
+btnCamCompact.addEventListener('click', () => {
+  if (inputMode === 'camera') disableCamera();
 });
 
 btnDemo.addEventListener('click', () => {
@@ -207,7 +280,7 @@ btnReveal.addEventListener('click', () => {
   revealed = true;
   const guess = Number(guessInput.value);
   if (!lastAngles.length) {
-    guessResult.textContent = 'No angle yet — frame both hands first';
+    guessResult.textContent = 'No angle yet — show your hand first';
     return;
   }
   const truth = lastAngles[0];
@@ -227,8 +300,19 @@ aboutBackdrop.addEventListener('click', () => {
   setAboutOpen(false);
 });
 
+hudToggle.addEventListener('click', () => {
+  setHudExpanded(!hudExpanded);
+});
+
+hudScrim.addEventListener('click', () => {
+  setHudExpanded(false);
+});
+
 window.addEventListener('keydown', (e) => {
-  if (e.key === 'Escape' && aboutOpen) setAboutOpen(false);
+  if (e.key === 'Escape') {
+    if (aboutOpen) setAboutOpen(false);
+    else if (hudExpanded) setHudExpanded(false);
+  }
 });
 
 function paintLabels(
@@ -278,10 +362,21 @@ function frame(): void {
     demo.syncHandles();
   } else if (tracker) {
     const det = tracker.detect(video);
-    lastDetectHadLeft = !!det.left;
-    lastDetectHadRight = !!det.right;
-    camLeft = det.left;
-    camRight = det.right;
+    const hands = det.hands.length ? det.hands : tracker.listHands();
+    const anchor = resolveAnchors(hands);
+    lastHandsSeen = (hands.length >= 2 ? 2 : hands.length === 1 ? 1 : 0) as
+      | 0
+      | 1
+      | 2;
+    lastTipCount = anchor?.activeTips ?? 0;
+
+    if (anchor) {
+      camLeft = anchor.left;
+      camRight = anchor.right;
+    } else {
+      camLeft = null;
+      camRight = null;
+    }
 
     const resolved = scene.resolveHands(camLeft, camRight);
     left = resolved.left;
@@ -289,11 +384,7 @@ function frame(): void {
     mirrorX = true;
 
     const now = performance.now();
-    const meshLive =
-      !resolved.held &&
-      !resolved.fading &&
-      lastDetectHadLeft &&
-      lastDetectHadRight;
+    const meshLive = !resolved.held && !resolved.fading && !!anchor;
 
     if (meshLive && !shareHintShown) {
       shareHintShown = true;
@@ -302,12 +393,12 @@ function frame(): void {
     } else if (now < shareHintUntil) {
       // keep share hint on the status line
     } else if (!resolved.held && !resolved.fading) {
-      if (lastDetectHadLeft !== lastDetectHadRight) {
-        setStatus('Show both hands');
-      } else if (!lastDetectHadLeft && !lastDetectHadRight) {
-        setStatus('Camera on — show both hands and pinch');
+      if (!lastHandsSeen || lastTipCount === 0) {
+        setStatus('Show your hand — pinch or spread fingers');
+      } else if (!anchor && lastHandsSeen >= 1) {
+        setStatus('Spread fingers in frame');
       } else {
-        setStatus('Tracking — mesh follows your pinch');
+        setStatus('Tracking — mesh follows your fingers');
       }
     } else if (resolved.fading) {
       setStatus('Hands lost — fading…');
@@ -329,7 +420,7 @@ function frame(): void {
       : angText;
   } else {
     anglesReadout.textContent =
-      inputMode === 'camera' ? 'Waiting for both hands…' : '';
+      inputMode === 'camera' ? 'Waiting for hand…' : '';
   }
 
   paintLabels(angles, showAngles && angles.length > 0);
@@ -345,11 +436,15 @@ window.addEventListener('resize', () => {
 scene.setShadeMode('hybrid');
 scene.setShowWire(true);
 chipShade.textContent = SHADE_LABEL.hybrid;
+setHudExpanded(defaultHudExpanded);
 setInputMode('demo');
 if (motionCapture) {
   showAngles = true;
   setChip(chipAngles, true);
   setStatus('hold light');
+} else if (!skipAutoCamera) {
+  setStatus('Loading hand model…');
+  void enableCamera();
 }
 scene.resize();
 requestAnimationFrame(frame);

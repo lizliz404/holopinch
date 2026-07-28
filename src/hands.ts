@@ -11,6 +11,8 @@ export { TIP } from './landmarks';
 export type TrackedHands = {
   left: Landmark[] | null;
   right: Landmark[] | null;
+  /** Unordered hands this frame (0–2), for tip-anchor resolution. */
+  hands: Landmark[][];
   raw: HandLandmarkerResult | null;
 };
 
@@ -24,7 +26,12 @@ export class HandTracker {
   private landmarker: HandLandmarker | null = null;
   private lastVideoTime = -1;
   private running = false;
-  private lastResult: TrackedHands = { left: null, right: null, raw: null };
+  private lastResult: TrackedHands = {
+    left: null,
+    right: null,
+    hands: [],
+    raw: null,
+  };
 
   async init(): Promise<void> {
     const vision = await FilesetResolver.forVisionTasks(WASM_URL);
@@ -50,10 +57,19 @@ export class HandTracker {
       },
       audio: false,
     });
+    await this.adoptStream(video, stream);
+    return stream;
+  }
+
+  /** Attach an existing MediaStream and mark tracking live (no getUserMedia). */
+  async adoptStream(video: HTMLVideoElement, stream: MediaStream): Promise<void> {
+    const prev = video.srcObject as MediaStream | null;
+    if (prev && prev !== stream) {
+      prev.getTracks().forEach((t) => t.stop());
+    }
     video.srcObject = stream;
     await video.play();
     this.running = true;
-    return stream;
   }
 
   stopCamera(video: HTMLVideoElement): void {
@@ -65,7 +81,7 @@ export class HandTracker {
 
   detect(video: HTMLVideoElement): TrackedHands {
     if (!this.landmarker || !this.running || video.readyState < 2) {
-      return { left: null, right: null, raw: null };
+      return { left: null, right: null, hands: [], raw: null };
     }
 
     const t = video.currentTime;
@@ -78,6 +94,7 @@ export class HandTracker {
     const result = this.landmarker.detectForVideo(video, performance.now());
     let left: Landmark[] | null = null;
     let right: Landmark[] | null = null;
+    const ordered: Landmark[][] = [];
 
     const hands = result.landmarks ?? [];
     const handedness = result.handednesses ?? [];
@@ -85,14 +102,20 @@ export class HandTracker {
     for (let i = 0; i < hands.length; i++) {
       const label = handedness[i]?.[0]?.categoryName ?? '';
       const pts = hands[i].map((p) => ({ x: p.x, y: p.y, z: p.z }));
+      ordered.push(pts);
       if (label === 'Left') left = pts;
       else if (label === 'Right') right = pts;
       else if (!left) left = pts;
       else right = pts;
     }
 
-    this.lastResult = { left, right, raw: result };
+    this.lastResult = { left, right, hands: ordered, raw: result };
     return this.lastResult;
+  }
+
+  /** Unordered landmark arrays from the last detect (0–2 hands). */
+  listHands(): Landmark[][] {
+    return this.lastResult.hands;
   }
 
   get ready(): boolean {
