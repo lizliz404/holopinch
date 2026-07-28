@@ -146,11 +146,14 @@ body {
   position: absolute;
   inset: 0;
   z-index: 4;
-  background: transparent;
+  background: rgba(0, 0, 0, 0.28);
+  opacity: 1;
+  transition: opacity 0.28s ease;
 }
 
 #hud-scrim.hidden {
-  display: none;
+  opacity: 0;
+  pointer-events: none;
 }
 
 #hud {
@@ -240,6 +243,7 @@ body {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  transition: opacity 0.3s ease;
 }
 
 #hud[data-state='expanded'] #status {
@@ -308,19 +312,33 @@ body {
   border-color: rgba(125, 211, 192, 0.4);
   background: rgba(125, 211, 192, 0.12);
   min-height: 28px;
+  transition:
+    opacity 0.25s ease,
+    transform 0.25s ease;
 }
 
 .hud-stop.hidden {
-  display: none;
+  opacity: 0;
+  transform: scale(0.9);
+  pointer-events: none;
 }
 
 #hud-panel {
   display: grid;
   gap: 8px;
+  max-height: 420px;
+  opacity: 1;
+  overflow: hidden;
+  transition:
+    max-height 0.28s ease,
+    opacity 0.22s ease;
 }
 
 #hud-panel[hidden] {
-  display: none;
+  display: grid;
+  max-height: 0;
+  opacity: 0;
+  pointer-events: none;
 }
 
 #hud[data-state='collapsed'] #hud-panel {
@@ -344,6 +362,10 @@ button {
   border-radius: 10px;
   padding: 8px 12px;
   cursor: pointer;
+  transition:
+    border-color 0.2s ease,
+    background-color 0.2s ease,
+    color 0.2s ease;
 }
 
 button:hover {
@@ -387,6 +409,10 @@ button.primary:hover {
   border-radius: 999px;
   font-size: 12px;
   color: var(--muted);
+  transition:
+    color 0.2s ease,
+    border-color 0.2s ease,
+    background-color 0.2s ease;
 }
 
 .chip.active {
@@ -395,15 +421,26 @@ button.primary:hover {
   background: rgba(125, 211, 192, 0.12);
 }
 
-#guess-panel.hidden {
-  display: none;
-}
-
 #guess-panel {
   display: grid;
   gap: 8px;
   padding-top: 6px;
   border-top: 1px solid var(--line);
+  max-height: 180px;
+  opacity: 1;
+  overflow: hidden;
+  transition:
+    max-height 0.25s ease,
+    opacity 0.2s ease,
+    padding-top 0.25s ease;
+}
+
+#guess-panel.hidden {
+  max-height: 0;
+  opacity: 0;
+  padding-top: 0;
+  border-top-color: transparent;
+  pointer-events: none;
 }
 
 #guess-panel label {
@@ -480,10 +517,13 @@ button.primary:hover {
   inset: 0;
   z-index: 9;
   background: rgba(0, 0, 0, 0.45);
+  opacity: 1;
+  transition: opacity 0.3s ease;
 }
 
 #about-backdrop.hidden {
-  display: none;
+  opacity: 0;
+  pointer-events: none;
 }
 
 #about-panel {
@@ -502,10 +542,17 @@ button.primary:hover {
   backdrop-filter: blur(16px);
   font-size: 13px;
   line-height: 1.45;
+  opacity: 1;
+  transform: translate(-50%, -50%) scale(1);
+  transition:
+    opacity 0.3s ease,
+    transform 0.3s cubic-bezier(0.2, 0.9, 0.25, 1.1);
 }
 
 #about-panel.hidden {
-  display: none;
+  opacity: 0;
+  transform: translate(-50%, -50%) scale(0.96) translateY(6px);
+  pointer-events: none;
 }
 
 #about-panel .about-close {
@@ -521,6 +568,9 @@ button.primary:hover {
   font-size: 1.15rem;
   line-height: 1;
   cursor: pointer;
+  transition:
+    color 0.2s ease,
+    background-color 0.2s ease;
 }
 
 #about-panel .about-close:hover {

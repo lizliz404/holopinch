@@ -25,7 +25,7 @@ HoloPinch 的问题不再是“能否做出手势驱动的全息体”——这�
 
 | 项 | 状态 | 位置 |
 |---|---|---|
-| 显式 `Start camera`，取消自动 `getUserMedia` | done | `src/main.ts` |
+| 显式 `Start camera` → **用户推翻**：恢复自动 `getUserMedia`，loading 期 attract 作缓冲 | done (revised) | `src/main.ts` |
 | 首屏无标签 continuum attract（`prefers-reduced-motion` 关闭） | done | `src/main.ts` |
 | 默认 Angles off；About 文案同步 | done | `main.ts` / `index.html` |
 | 同 camera frame 复用 geometry（identity cache） | done | `src/scene.ts` |
@@ -41,6 +41,10 @@ HoloPinch 的问题不再是“能否做出手势驱动的全息体”——这�
 | 后台 tab 暂停 camera track | done | `src/main.ts` |
 | 相机错误映射（denied / missing / busy） | done | `src/main.ts` |
 | 去词标虹彩循环（清汤/糖精风险） | done | `src/style.css` |
+| **自动 camera（loading 期 attract 缓冲，用户 2026-07-28 明确）** | done | `src/main.ts` boot |
+| **About / HUD / 所有弹层渐隐渐显（300ms）** | done | `src/style.css` + `main.ts setAboutOpen` |
+| **model/wasm 自托管 + preload（冷启动 CDN 延迟→同源）** | done | `public/mediapipe/` + `hands.worker.ts` |
+| 相机分辨率 1280×720 → 960×540 | done | `src/hands.ts` |
 
 **仍未做（需素材/真机）：** 真人手势 OG/9:16 master；iOS/中端 Android QA；MediaPipe 1.0；CSP。  
 **本轮工程底座（见 [`docs/WHEELS.md`](WHEELS.md)）：** Worker MediaPipe + `1eurofilter` + 预分配 BufferGeometry（无每帧 EdgesGeometry）。

@@ -13,6 +13,9 @@
     <meta name="theme-color" content="#0a0a0c" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
 
+    <link rel="preload" href="/mediapipe/wasm/vision_wasm_internal.wasm" as="fetch" type="application/wasm" crossorigin />
+    <link rel="preload" href="/mediapipe/hand_landmarker.task" as="fetch" crossorigin />
+
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
@@ -74,10 +77,11 @@
         <p class="tagline">Hold light between your hands. No app. Just a browser.</p>
       </header>
 
-      <div id="about-backdrop" class="hidden" aria-hidden="true"></div>
+      <div id="about-backdrop" class="hidden" style="display:none" aria-hidden="true"></div>
       <aside
         id="about-panel"
         class="hidden"
+        style="display:none"
         role="dialog"
         aria-modal="true"
         aria-labelledby="about-title"
@@ -95,9 +99,9 @@
 
         <h3>Play</h3>
         <p>
-          Tap <strong>Start camera</strong>, then pinch or spread one or both hands. Closer + flat →
-          foil card. Farther + open → crystal bar. Best with two hands. Prefer Demo? Drag the orbs on
-          stage (open controls for more).
+          The camera wakes on its own — pinch or spread one or both hands. Closer + flat → foil
+          card. Farther + open → crystal bar. Best with two hands. No camera, or denied? The demo
+          orbs on stage already respond; open controls for more.
         </p>
 
         <h3>Angles</h3>
@@ -161,7 +165,7 @@
         <div id="hud-panel" hidden>
           <div id="angles-readout"></div>
 
-          <button id="btn-cam" type="button" class="primary">Start camera</button>
+          <button id="btn-cam" type="button" class="primary">Camera</button>
 
           <div class="chips" role="toolbar" aria-label="Modes">
             <button id="btn-demo" type="button" class="chip active" aria-pressed="true">Demo</button>

@@ -47,10 +47,10 @@ const DEMO_STATUS_FULL = isCoarsePointer
   ? 'Demo — drag orbs · two-finger vertical = open · horizontal = spread'
   : 'Demo — drag orbs · scroll = open · Shift+scroll = spread';
 const DEMO_STATUS_SHORT = 'Demo';
-const START_STATUS_FULL = 'Start camera — or drag the light';
-const START_STATUS_SHORT = 'Start camera';
+const START_STATUS_FULL = 'Drag the light — camera wakes on its own';
+const START_STATUS_SHORT = 'Camera…';
 /** Keep in emitted JS so Cloudflare custom-domain asset URLs rotate after cache poison. */
-const BUILD_ID = 'worker-pool-2026-07-28c';
+const BUILD_ID = 'auto-cam-fade-2026-07-28a';
 if (typeof document !== 'undefined') {
   document.documentElement.dataset.build = BUILD_ID;
 }
@@ -165,15 +165,34 @@ function setChip(el: HTMLButtonElement, on: boolean): void {
   el.setAttribute('aria-pressed', on ? 'true' : 'false');
 }
 
+const ABOUT_FADE_MS = 300;
+let aboutTimer: ReturnType<typeof setTimeout> | null = null;
+
 function setAboutOpen(open: boolean): void {
   aboutOpen = open;
-  aboutPanel.classList.toggle('hidden', !open);
-  aboutBackdrop.classList.toggle('hidden', !open);
+  if (aboutTimer) {
+    clearTimeout(aboutTimer);
+    aboutTimer = null;
+  }
   aboutBackdrop.setAttribute('aria-hidden', open ? 'false' : 'true');
   btnAbout.setAttribute('aria-expanded', open ? 'true' : 'false');
   if (open) {
+    aboutPanel.style.display = '';
+    aboutBackdrop.style.display = '';
+    void aboutPanel.offsetWidth;
+    aboutPanel.classList.remove('hidden');
+    aboutBackdrop.classList.remove('hidden');
     aboutClose.focus();
   } else {
+    aboutPanel.classList.add('hidden');
+    aboutBackdrop.classList.add('hidden');
+    aboutTimer = setTimeout(() => {
+      if (!aboutOpen) {
+        aboutPanel.style.display = 'none';
+        aboutBackdrop.style.display = 'none';
+      }
+      aboutTimer = null;
+    }, ABOUT_FADE_MS);
     btnAbout.focus();
   }
 }
@@ -181,9 +200,9 @@ function setAboutOpen(open: boolean): void {
 function syncCamButtons(): void {
   const live = inputMode === 'camera';
   btnCam.classList.toggle('active', live);
-  btnCam.textContent = live ? 'Stop camera' : 'Start camera';
+  btnCam.textContent = live ? 'Stop camera' : 'Retry camera';
   btnCamQuick.disabled = cameraStarting;
-  btnCamQuick.setAttribute('aria-label', live ? 'Stop camera' : 'Start camera');
+  btnCamQuick.setAttribute('aria-label', live ? 'Stop camera' : 'Camera');
   btnCamCompact.classList.toggle('hidden', !live);
   btnCamCompact.disabled = cameraStarting;
 }
@@ -271,6 +290,7 @@ async function enableCamera(): Promise<void> {
     }
     setInputMode('demo');
     setBrandState('idle');
+    introAttracting = false;
     const name = err instanceof DOMException ? err.name : '';
     const denied = name === 'NotAllowedError' || /NotAllowed|Permission|denied/i.test(String(err));
     const missing = name === 'NotFoundError' || /NotFound|no camera|DevicesNotFound/i.test(String(err));
@@ -282,7 +302,7 @@ async function enableCamera(): Promise<void> {
           ? 'No camera found — drag Demo orbs instead'
           : busy
             ? 'Camera in use elsewhere — close other apps, or use Demo'
-            : 'Camera failed — use Demo orbs, or retry Start camera',
+            : 'Camera failed — drag Demo orbs; use controls to retry',
       denied ? 'Blocked' : missing ? 'No cam' : busy ? 'Cam busy' : 'Cam fail',
     );
   } finally {
@@ -566,6 +586,7 @@ if (motionCapture) {
 } else if (!skipAutoCamera) {
   setStatus(START_STATUS_FULL, START_STATUS_SHORT);
   setBrandState('intro');
+  void enableCamera();
 } else {
   setStatus(START_STATUS_FULL, START_STATUS_SHORT);
   setBrandState('intro');
