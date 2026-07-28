@@ -1,7 +1,7 @@
 import './style.css';
 import { resolveAnchors, type AnchorPair } from './anchors';
 import { DemoHands } from './demo';
-import type { HandTracker } from './hands';
+import { HandTracker } from './hands';
 import { PrismScene, type ShadeMode } from './scene';
 
 const app = document.querySelector<HTMLDivElement>('#app')!;
@@ -50,7 +50,7 @@ const DEMO_STATUS_SHORT = 'Demo';
 const START_STATUS_FULL = 'Start camera — or drag the light';
 const START_STATUS_SHORT = 'Start camera';
 /** Keep in emitted JS so Cloudflare custom-domain asset URLs rotate after cache poison. */
-const BUILD_ID = 'worker-pool-2026-07-28b';
+const BUILD_ID = 'worker-pool-2026-07-28c';
 if (typeof document !== 'undefined') {
   document.documentElement.dataset.build = BUILD_ID;
 }
@@ -214,8 +214,7 @@ function setInputMode(mode: InputMode): void {
 
 async function ensureTracker(): Promise<HandTracker> {
   if (!tracker) {
-    const mod = await import('./hands');
-    tracker = new mod.HandTracker();
+    tracker = new HandTracker();
   }
   if (!tracker.ready) await tracker.init();
   return tracker;
