@@ -50,7 +50,7 @@ const DEMO_STATUS_SHORT = 'Demo';
 const START_STATUS_FULL = 'Drag the light — camera wakes on its own';
 const START_STATUS_SHORT = 'Camera…';
 /** Keep in emitted JS so Cloudflare custom-domain asset URLs rotate after cache poison. */
-const BUILD_ID = 'auto-cam-fade-2026-07-28a';
+const BUILD_ID = 'model-timeout-retry-2026-07-28b';
 if (typeof document !== 'undefined') {
   document.documentElement.dataset.build = BUILD_ID;
 }
@@ -142,6 +142,8 @@ function setStatus(full: string, short?: string): void {
 
 function shortenStatus(full: string): string {
   const map: [RegExp, string][] = [
+    [/loading hand model.*wasm/i, 'WASM…'],
+    [/loading hand model.*model/i, 'Model…'],
     [/loading hand model/i, 'Loading…'],
     [/requesting camera/i, 'Camera…'],
     [/show your hand/i, 'Show hand'],
@@ -150,6 +152,7 @@ function shortenStatus(full: string): string {
     [/screenshot/i, 'Snap it'],
     [/hands lost.*fading/i, 'Fading…'],
     [/hands lost.*holding/i, 'Holding…'],
+    [/hand model failed/i, 'Model fail'],
     [/camera blocked/i, 'Blocked'],
     [/camera failed/i, 'Cam fail'],
     [/^demo/i, DEMO_STATUS_SHORT],
@@ -231,12 +234,28 @@ function setInputMode(mode: InputMode): void {
   }
 }
 
-async function ensureTracker(): Promise<HandTracker> {
-  if (!tracker) {
-    tracker = new HandTracker();
-  }
-  if (!tracker.ready) await tracker.init();
-  return tracker;
+function liveVideoStream(): MediaStream | null {
+  const existing = video.srcObject as MediaStream | null;
+  if (!existing) return null;
+  const live = existing.getVideoTracks().some((t) => t.readyState === 'live');
+  return live ? existing : null;
+}
+
+function setCameraPermissionStatus(err: unknown): void {
+  const name = err instanceof DOMException ? err.name : '';
+  const denied = name === 'NotAllowedError' || /NotAllowed|Permission|denied/i.test(String(err));
+  const missing = name === 'NotFoundError' || /NotFound|no camera|DevicesNotFound/i.test(String(err));
+  const busy = name === 'NotReadableError' || /NotReadable|track|in use/i.test(String(err));
+  setStatus(
+    denied
+      ? 'Camera blocked — allow permission, or drag Demo orbs'
+      : missing
+        ? 'No camera found — drag Demo orbs instead'
+        : busy
+          ? 'Camera in use elsewhere — close other apps, or use Demo'
+          : 'Camera failed — drag Demo orbs; use controls to retry',
+    denied ? 'Blocked' : missing ? 'No cam' : busy ? 'Cam busy' : 'Cam fail',
+  );
 }
 
 async function enableCamera(): Promise<void> {
@@ -246,66 +265,119 @@ async function enableCamera(): Promise<void> {
   btnCam.disabled = true;
   syncCamButtons();
   let acquired: MediaStream | null = null;
+  let keepStream = false;
+  let progressIv: ReturnType<typeof setInterval> | null = null;
   try {
+    if (!tracker) tracker = new HandTracker();
+
     let modelDone = false;
-    let camDone = false;
+    let camDone = !!liveVideoStream();
     const paintProgress = () => {
-      if (!modelDone) setStatus('Loading hand model…', 'Loading…');
-      else if (!camDone) setStatus('Requesting camera…', 'Camera…');
+      if (!modelDone) {
+        const stage = tracker?.initProgress;
+        if (stage === 'wasm') setStatus('Loading hand model (WASM)…', 'WASM…');
+        else if (stage === 'model') setStatus('Loading hand model (model)…', 'Model…');
+        else if (stage === 'init') setStatus('Loading hand model…', 'Init…');
+        else setStatus('Loading hand model…', 'Loading…');
+      } else if (!camDone) {
+        setStatus('Requesting camera…', 'Camera…');
+      }
     };
     paintProgress();
+    progressIv = setInterval(paintProgress, 250);
 
-    const tPromise = ensureTracker().then((t) => {
+    const tPromise = tracker.init().then(() => {
       modelDone = true;
       paintProgress();
-      return t;
+      return tracker!;
     });
 
-    const streamPromise = navigator.mediaDevices
-      .getUserMedia({
-        video: {
-          facingMode: 'user',
-          width: { ideal: 1280 },
-          height: { ideal: 720 },
-        },
-        audio: false,
-      })
-      .then((stream) => {
-        camDone = true;
-        paintProgress();
-        return stream;
-      });
+    const existing = liveVideoStream();
+    const streamPromise = existing
+      ? Promise.resolve(existing).then((stream) => {
+          camDone = true;
+          paintProgress();
+          return stream;
+        })
+      : navigator.mediaDevices
+          .getUserMedia({
+            video: {
+              facingMode: 'user',
+              width: { ideal: 960 },
+              height: { ideal: 540 },
+            },
+            audio: false,
+          })
+          .then((stream) => {
+            camDone = true;
+            acquired = stream;
+            paintProgress();
+            return stream;
+          });
 
-    const [t, stream] = await Promise.all([tPromise, streamPromise]);
+    const [tResult, sResult] = await Promise.allSettled([tPromise, streamPromise]);
+    if (progressIv) {
+      clearInterval(progressIv);
+      progressIv = null;
+    }
+
+    if (tResult.status === 'fulfilled' && sResult.status === 'fulfilled') {
+      const t = tResult.value;
+      const stream = sResult.value;
+      acquired = stream;
+      await t.adoptStream(video, stream);
+      keepStream = true;
+      setInputMode('camera');
+      setStatus('Show your hand — pinch or spread fingers', 'Show hand');
+      setBrandState('idle');
+      return;
+    }
+
+    if (sResult.status === 'rejected') {
+      console.error(sResult.reason);
+      setInputMode('demo');
+      setBrandState('idle');
+      introAttracting = false;
+      setCameraPermissionStatus(sResult.reason);
+      return;
+    }
+
+    // Camera OK, model failed — keep stream, fall back to Demo; Retry reloads model.
+    console.error(tResult.status === 'rejected' ? tResult.reason : 'model init failed');
+    const stream: MediaStream = sResult.value;
     acquired = stream;
-    await t.adoptStream(video, stream);
-
-    setInputMode('camera');
-    setStatus('Show your hand — pinch or spread fingers', 'Show hand');
+    const prev = video.srcObject as MediaStream | null;
+    if (prev && prev !== stream) {
+      prev.getTracks().forEach((tr) => tr.stop());
+    }
+    video.srcObject = stream;
+    try {
+      await video.play();
+    } catch {
+      /* autoplay may fail; stream still held for retry */
+    }
+    keepStream = true;
+    setInputMode('demo');
     setBrandState('idle');
+    introAttracting = false;
+    setStatus(
+      'Hand model failed — Demo still works; tap Retry camera',
+      'Model fail',
+    );
   } catch (err) {
     console.error(err);
-    if (acquired) {
+    if (acquired && !keepStream) {
       acquired.getTracks().forEach((tr) => tr.stop());
     }
     setInputMode('demo');
     setBrandState('idle');
     introAttracting = false;
-    const name = err instanceof DOMException ? err.name : '';
-    const denied = name === 'NotAllowedError' || /NotAllowed|Permission|denied/i.test(String(err));
-    const missing = name === 'NotFoundError' || /NotFound|no camera|DevicesNotFound/i.test(String(err));
-    const busy = name === 'NotReadableError' || /NotReadable|track|in use/i.test(String(err));
-    setStatus(
-      denied
-        ? 'Camera blocked — allow permission, or drag Demo orbs'
-        : missing
-          ? 'No camera found — drag Demo orbs instead'
-          : busy
-            ? 'Camera in use elsewhere — close other apps, or use Demo'
-            : 'Camera failed — drag Demo orbs; use controls to retry',
-      denied ? 'Blocked' : missing ? 'No cam' : busy ? 'Cam busy' : 'Cam fail',
-    );
+    setCameraPermissionStatus(err);
   } finally {
+    if (progressIv) clearInterval(progressIv);
+    if (acquired && !keepStream) {
+      acquired.getTracks().forEach((tr) => tr.stop());
+    }
     cameraStarting = false;
     btnCam.disabled = false;
     syncCamButtons();

@@ -44,7 +44,8 @@ HoloPinch 的问题不再是“能否做出手势驱动的全息体”——这�
 | **自动 camera（loading 期 attract 缓冲，用户 2026-07-28 明确）** | done | `src/main.ts` boot |
 | **About / HUD / 所有弹层渐隐渐显（300ms）** | done | `src/style.css` + `main.ts setAboutOpen` |
 | **model/wasm 自托管 + preload（冷启动 CDN 延迟→同源）** | done | `public/mediapipe/` + `hands.worker.ts` |
-| 相机分辨率 1280×720 → 960×540 | done | `src/hands.ts` |
+| 相机分辨率 1280×720 → 960×540 | done | `src/main.ts` `enableCamera` |
+| **模型加载挂死修复：Worker 30s timeout + 进度上报 + 60s 总超时 3 重试** | done | `src/hands.worker.ts` + `hands.ts` + `main.ts` |
 
 **仍未做（需素材/真机）：** 真人手势 OG/9:16 master；iOS/中端 Android QA；MediaPipe 1.0；CSP。  
 **本轮工程底座（见 [`docs/WHEELS.md`](WHEELS.md)）：** Worker MediaPipe + `1eurofilter` + 预分配 BufferGeometry（无每帧 EdgesGeometry）。
@@ -156,8 +157,26 @@ HoloPinch 的问题不再是“能否做出手势驱动的全息体”——这�
 - [W3C — native modal dialog](https://www.w3.org/WAI/WCAG21/Techniques/html/H102)：原生 `<dialog>` 负责 focus、inert background、Esc 与 focus return。
 
 ---
+## 7. 模型加载挂死修复（2026-07-28b）
 
-**当前决策：** 先 ship 首访与 same-frame geometry 修正；然后拿真实人手视频做 3 秒测试。  
-**信心：** 高（源码/构建/live/资产）；中（用户与真机反应）。  
-**Owner：** Liz 决定真实素材与 distribution；Hermes 负责代码、审计闭环与 deployment verification。  
-**下个 checkpoint：** push 后线上 smoke；随后 5–10 个非技术观察者 + 至少 Android/iOS 各一台真机。
+用户反馈：访问后卡在 "Loading hand model…" 永不进入。
+
+**Root cause：**
+- `hands.worker.ts` `init()` 中 `FilesetResolver.forVisionTasks` + `HandLandmarker.createFromOptions` 无 timeout
+- Worker 崩溃/静默失败 → 既不 post 'ready' 也不 post 'init-error' → `initPromise` 永远 pending
+- 无重试机制，single-shot 失败即死
+- 无进度上报，主线程只能死写 "Loading hand model…"
+
+**修复：**
+
+| 层 | 改动 |
+|---|---|
+| Worker | `withTimeout` 30s/阶段（WASM fetch → model load）；`postProgress('wasm'|'model'|'init')` |
+| Tracker init | 60s 总超时 + 3 次重试（间隔 3s）；暴露 `initProgress` / `attempt` |
+| 主线程 | `Promise.allSettled` 分离模型/相机结果；模型失败 + 相机 OK → 保留 stream 降级 Demo + "Hand model failed… Retry"；210ms 轮询进度更新状态栏 |
+| 分辨率 | `enableCamera` `1280×720` → `960×540`（原 dead code `startCamera` 里的降级从未生效） |
+| 重试 | Retry 按钮复用现有 live stream，只重新 init model |
+
+---
+
+**当前决策：** 先 ship 首访与 same-frame geometry 修正；然后拿真实人手视频做 3 秒测试。  \n**信心：** 高（源码/构建/live/资产）；中（用户与真机反应）。  \n**Owner：** Liz 决定真实素材与 distribution；Hermes 负责代码、审计闭环与 deployment verification。  \n**下个 checkpoint：** push 后线上 smoke；随后 5–10 个非技术观察者 + 至少 Android/iOS 各一台真机。

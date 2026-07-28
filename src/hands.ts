@@ -11,6 +11,8 @@ export type TrackedHands = {
   raw: null;
 };
 
+export type InitStage = 'wasm' | 'model' | 'init' | null;
+
 type WorkerHand = {
   landmarks: Landmark[];
   handedness: string;
@@ -19,6 +21,7 @@ type WorkerHand = {
 type WorkerOut =
   | { type: 'ready'; delegate: string }
   | { type: 'init-error'; error: string }
+  | { type: 'progress'; stage: 'wasm' | 'model' | 'init' }
   | { type: 'result'; hands: WorkerHand[] }
   | { type: 'detect-error'; error: string };
 
@@ -28,6 +31,10 @@ const empty: TrackedHands = {
   hands: [],
   raw: null,
 };
+
+const MAX_INIT_RETRIES = 3;
+const INIT_TIMEOUT_MS = 60_000;
+const RETRY_DELAY_MS = 3_000;
 
 function packHands(list: WorkerHand[]): TrackedHands {
   let left: Landmark[] | null = null;
@@ -45,6 +52,10 @@ function packHands(list: WorkerHand[]): TrackedHands {
   return { left, right, hands: ordered, raw: null };
 }
 
+function delay(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
 /**
  * Camera hand tracker: MediaPipe in a Worker with single-frame backpressure.
  * `detect()` is non-blocking — returns last result; kicks a new inference when idle.
@@ -57,47 +68,158 @@ export class HandTracker {
   private lastKickVideoTime = -1;
   private lastResult: TrackedHands = empty;
   private initPromise: Promise<void> | null = null;
+  private _initProgress: InitStage = null;
+  private initRetries = 0;
+
+  get initProgress(): InitStage {
+    return this._initProgress;
+  }
+
+  get attempt(): number {
+    return this.initRetries;
+  }
 
   async init(): Promise<void> {
+    if (this.isReady) return;
     if (this.initPromise) return this.initPromise;
-    this.initPromise = new Promise<void>((resolve, reject) => {
+    this.initPromise = this.runInitWithRetries();
+    try {
+      await this.initPromise;
+    } catch (err) {
+      this.initPromise = null;
+      throw err;
+    }
+  }
+
+  private async runInitWithRetries(): Promise<void> {
+    let lastErr: unknown;
+    for (let attempt = 1; attempt <= MAX_INIT_RETRIES; attempt++) {
+      this.initRetries = attempt;
+      try {
+        await this.initOnce();
+        this._initProgress = null;
+        return;
+      } catch (err) {
+        lastErr = err;
+        this.teardownWorker();
+        console.warn(`[HoloPinch] init attempt ${attempt}/${MAX_INIT_RETRIES} failed`, err);
+        if (attempt < MAX_INIT_RETRIES) {
+          await delay(RETRY_DELAY_MS);
+        }
+      }
+    }
+    this._initProgress = null;
+    throw lastErr instanceof Error
+      ? lastErr
+      : new Error(String(lastErr ?? 'Hand model init failed'));
+  }
+
+  private teardownWorker(): void {
+    try {
+      this.worker?.terminate();
+    } catch {
+      /* ignore */
+    }
+    this.worker = null;
+    this.isReady = false;
+    this.inFlight = false;
+    this._initProgress = null;
+  }
+
+  private initOnce(): Promise<void> {
+    return new Promise<void>((resolve, reject) => {
+      let settled = false;
+      const finish = (fn: () => void) => {
+        if (settled) return;
+        settled = true;
+        clearTimeout(timer);
+        fn();
+      };
+
+      const timer = setTimeout(() => {
+        finish(() => {
+          this.teardownWorker();
+          reject(new Error(`Hand model init timed out after ${INIT_TIMEOUT_MS / 1000}s`));
+        });
+      }, INIT_TIMEOUT_MS);
+
       try {
         const worker = new Worker(new URL('./hands.worker.ts', import.meta.url), {
           type: 'module',
         });
         this.worker = worker;
+
         worker.onmessage = (ev: MessageEvent<WorkerOut>) => {
           const msg = ev.data;
           if (!msg) return;
+          if (msg.type === 'progress') {
+            this._initProgress = msg.stage;
+            return;
+          }
           if (msg.type === 'ready') {
             this.isReady = true;
-            resolve();
+            this._initProgress = null;
+            this.bindRuntimeHandlers(worker);
+            finish(() => resolve());
             return;
           }
           if (msg.type === 'init-error') {
-            reject(new Error(msg.error));
+            finish(() => {
+              this.teardownWorker();
+              reject(new Error(msg.error));
+            });
             return;
-          }
-          if (msg.type === 'result') {
-            this.inFlight = false;
-            this.lastResult = packHands(msg.hands);
-            return;
-          }
-          if (msg.type === 'detect-error') {
-            this.inFlight = false;
-            console.warn('[HoloPinch] worker detect:', msg.error);
           }
         };
+
         worker.onerror = (err) => {
           this.inFlight = false;
-          reject(err.error ?? new Error(String(err.message)));
+          finish(() => {
+            this.teardownWorker();
+            reject(
+              err.error instanceof Error
+                ? err.error
+                : new Error(err.message || 'Worker crashed during init'),
+            );
+          });
         };
+
+        worker.onmessageerror = () => {
+          finish(() => {
+            this.teardownWorker();
+            reject(new Error('Worker message error during init'));
+          });
+        };
+
         worker.postMessage({ type: 'init' });
       } catch (err) {
-        reject(err);
+        finish(() => reject(err));
       }
     });
-    return this.initPromise;
+  }
+
+  private bindRuntimeHandlers(worker: Worker): void {
+    worker.onmessage = (ev: MessageEvent<WorkerOut>) => {
+      const msg = ev.data;
+      if (!msg) return;
+      if (msg.type === 'result') {
+        this.inFlight = false;
+        this.lastResult = packHands(msg.hands);
+        return;
+      }
+      if (msg.type === 'detect-error') {
+        this.inFlight = false;
+        console.warn('[HoloPinch] worker detect:', msg.error);
+      }
+    };
+    worker.onerror = (err) => {
+      this.inFlight = false;
+      console.warn('[HoloPinch] worker error:', err.message);
+    };
+    worker.onmessageerror = () => {
+      this.inFlight = false;
+      console.warn('[HoloPinch] worker messageerror');
+    };
   }
 
   async startCamera(video: HTMLVideoElement): Promise<MediaStream> {
@@ -178,9 +300,7 @@ export class HandTracker {
   dispose(): void {
     this.running = false;
     this.worker?.postMessage({ type: 'dispose' });
-    this.worker?.terminate();
-    this.worker = null;
-    this.isReady = false;
+    this.teardownWorker();
     this.initPromise = null;
   }
 }
