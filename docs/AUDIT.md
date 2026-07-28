@@ -132,7 +132,8 @@ HoloPinch 的问题不再是“能否做出手势驱动的全息体”——这�
 - 线上 Origin-header hashed JS：`content-type: application/javascript`、immutable；未复发历史 cache poison。
 - `_headers`：`nosniff`、`DENY`、camera `(self)`、referrer policy 均存在。
 - **本轮改前**线上：无 `h1`；可长期卡在 `Requesting camera…`；CTA 为 `Retry camera`。
-- **本轮改后（待 deploy 验证）：** 本地 `tsc`/`build`；首访应为 `Start camera` + demo attract、Angles 默认关。
+- **本轮改后：** `tsc` + `vite build` 通过；本地 preview 首屏 `Start camera` + mesh、Angles off、`h1` 存在。
+- **生产 curl 验证（`b4bc3c9`）：** `holopinch.lizliz.xyz` 与 `holopinch.pages.dev` 均已吐 `index-BXDfGmbp.js`、`btn-cam-quick`、`Start camera`；Origin-header asset 为 `application/javascript` + immutable。
 
 ### 未验证 / 不作假设
 
