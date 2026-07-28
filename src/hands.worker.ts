@@ -2,15 +2,24 @@
  * MediaPipe HandLandmarker in a Web Worker.
  * Pattern: Google mediapipe-samples-web + damiansire backpressure client.
  * Main thread only ships ImageBitmap; worker returns plain landmarks.
+ *
+ * Critical: Vite workers are ES modules. MediaPipe's classic wasm loader
+ * (`vision_wasm_internal.js`) is designed for `importScripts()` and does not
+ * export `ModuleFactory` under dynamic `import()`. Module workers must use
+ * `FilesetResolver.forVisionTasks(path, true)` → `vision_wasm_module_internal.*`
+ * (see mediapipe-samples-web BaseWorker.getVisionFileset).
  */
-import {
-  FilesetResolver,
-  HandLandmarker,
-} from '@mediapipe/tasks-vision';
+import { FilesetResolver, HandLandmarker } from '@mediapipe/tasks-vision';
 
-// Self-hosted: same-origin avoids CDN cold-start + jsdelivr/storage latency.
-const MODEL_URL = '/mediapipe/hand_landmarker.task';
-const WASM_URL = '/mediapipe/wasm';
+type VisionFileset = Awaited<ReturnType<typeof FilesetResolver.forVisionTasks>>;
+
+const SELF_MODEL_URL = '/mediapipe/hand_landmarker.task';
+const SELF_WASM_URL = '/mediapipe/wasm';
+
+const CDN_MODEL_URL =
+  'https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task';
+const CDN_WASM_URL =
+  'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.35/wasm';
 
 const STEP_TIMEOUT_MS = 30_000;
 
@@ -25,13 +34,22 @@ type InMsg = InitMsg | DetectMsg | DisposeMsg;
 
 type ProgressStage = 'wasm' | 'model' | 'init';
 
+type AssetSource = {
+  label: 'self' | 'cdn';
+  wasmUrl: string;
+  modelUrl: string;
+};
+
+const SOURCES: AssetSource[] = [
+  { label: 'self', wasmUrl: SELF_WASM_URL, modelUrl: SELF_MODEL_URL },
+  { label: 'cdn', wasmUrl: CDN_WASM_URL, modelUrl: CDN_MODEL_URL },
+];
+
 let landmarker: HandLandmarker | null = null;
 
 function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise<T> {
-  const ac = new AbortController();
   return new Promise<T>((resolve, reject) => {
     const timer = setTimeout(() => {
-      ac.abort();
       reject(new Error(`${label} timed out after ${ms}ms`));
     }, ms);
     promise.then(
@@ -47,51 +65,103 @@ function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise
   });
 }
 
+function formatErr(err: unknown): string {
+  if (err instanceof Error) {
+    return err.stack ? `${err.message}\n${err.stack}` : err.message;
+  }
+  return String(err);
+}
+
+function stepError(step: string, source: AssetSource, delegate: string, err: unknown): Error {
+  return new Error(`[${source.label}/${delegate}] ${step}: ${formatErr(err)}`);
+}
+
 function postProgress(stage: ProgressStage): void {
   self.postMessage({ type: 'progress', stage });
 }
 
-async function createLandmarker(delegate: 'GPU' | 'CPU'): Promise<HandLandmarker> {
+async function resolveFileset(source: AssetSource, delegate: string): Promise<VisionFileset> {
+  // Second arg `true` = ES module wasm loader (required in module Workers).
+  // Classic vision_wasm_internal.js has no `export default` / no globalThis.ModuleFactory
+  // under dynamic import(), so module Workers hit "ModuleFactory not set".
+  try {
+    const fileset = await withTimeout(
+      FilesetResolver.forVisionTasks(source.wasmUrl, true),
+      STEP_TIMEOUT_MS,
+      `fileset resolve`,
+    );
+    // Helpful breadcrumb in worker console / init-error dumps.
+    console.info(
+      `[HoloPinch worker] fileset ${source.label}:`,
+      String(fileset.wasmLoaderPath),
+      String(fileset.wasmBinaryPath),
+    );
+    return fileset;
+  } catch (err) {
+    throw stepError('fileset resolve (SIMD/path)', source, delegate, err);
+  }
+}
+
+async function createLandmarker(
+  source: AssetSource,
+  delegate: 'GPU' | 'CPU',
+): Promise<HandLandmarker> {
   postProgress('wasm');
-  const vision = await withTimeout(
-    FilesetResolver.forVisionTasks(WASM_URL),
-    STEP_TIMEOUT_MS,
-    `WASM fetch (${delegate})`,
-  );
+  const vision = await resolveFileset(source, delegate);
+
   postProgress('model');
-  const lm = await withTimeout(
-    HandLandmarker.createFromOptions(vision, {
-      baseOptions: {
-        modelAssetPath: MODEL_URL,
-        delegate,
-      },
-      runningMode: 'VIDEO',
-      numHands: 2,
-      minHandDetectionConfidence: 0.5,
-      minHandPresenceConfidence: 0.5,
-      minTrackingConfidence: 0.5,
-    }),
-    STEP_TIMEOUT_MS,
-    `Model load (${delegate})`,
-  );
-  postProgress('init');
-  return lm;
+  try {
+    const lm = await withTimeout(
+      HandLandmarker.createFromOptions(vision, {
+        baseOptions: {
+          modelAssetPath: source.modelUrl,
+          delegate,
+        },
+        runningMode: 'VIDEO',
+        numHands: 2,
+        minHandDetectionConfidence: 0.5,
+        minHandPresenceConfidence: 0.5,
+        minTrackingConfidence: 0.5,
+      }),
+      STEP_TIMEOUT_MS,
+      `createFromOptions`,
+    );
+    postProgress('init');
+    return lm;
+  } catch (err) {
+    throw stepError(
+      `createFromOptions loader=${vision.wasmLoaderPath} wasm=${vision.wasmBinaryPath} model=${source.modelUrl}`,
+      source,
+      delegate,
+      err,
+    );
+  }
 }
 
 async function init(): Promise<void> {
-  try {
-    landmarker = await createLandmarker('GPU');
-    self.postMessage({ type: 'ready', delegate: 'GPU' });
-  } catch (err) {
-    console.warn('[HoloPinch worker] GPU failed; CPU', err);
-    try {
-      landmarker = await createLandmarker('CPU');
-      self.postMessage({ type: 'ready', delegate: 'CPU' });
-    } catch (err2) {
-      const msg = err2 instanceof Error ? err2.message : String(err2);
-      self.postMessage({ type: 'init-error', error: msg });
+  const errors: string[] = [];
+
+  for (const source of SOURCES) {
+    for (const delegate of ['GPU', 'CPU'] as const) {
+      try {
+        landmarker = await createLandmarker(source, delegate);
+        self.postMessage({
+          type: 'ready',
+          delegate: `${delegate}@${source.label}`,
+        });
+        return;
+      } catch (err) {
+        const msg = formatErr(err);
+        errors.push(msg);
+        console.warn(`[HoloPinch worker] ${source.label}/${delegate} failed`, err);
+      }
     }
   }
+
+  self.postMessage({
+    type: 'init-error',
+    error: errors.join('\n---\n') || 'Hand model init failed (no attempts)',
+  });
 }
 
 function detect(bitmap: ImageBitmap, timestamp: number): void {

@@ -179,4 +179,22 @@ HoloPinch 的问题不再是“能否做出手势驱动的全息体”——这�
 
 ---
 
-**当前决策：** 先 ship 首访与 same-frame geometry 修正；然后拿真实人手视频做 3 秒测试。  \n**信心：** 高（源码/构建/live/资产）；中（用户与真机反应）。  \n**Owner：** Liz 决定真实素材与 distribution；Hermes 负责代码、审计闭环与 deployment verification。  \n**下个 checkpoint：** push 后线上 smoke；随后 5–10 个非技术观察者 + 至少 Android/iOS 各一台真机。
+## 8. 模块 Worker × 经典 WASM Loader 不兼容（2026-07-28c）
+
+**Root cause（Cursor 诊断，代码级证明）：**
+
+1. Worker 以 `type: 'module'` 创建（`hands.ts`）
+2. `FilesetResolver.forVisionTasks('/mediapipe/wasm')` 默认 `useModule=false`，加载经典 loader `vision_wasm_internal.js`
+3. 经典 loader 依赖 `importScripts()` — 在 module Worker 中抛 `TypeError`；fallback `dynamic import()` 时经典 loader 没有 `export default` / `globalThis.ModuleFactory`
+4. 结果：`"ModuleFactory not set"` — 模型加载静默失败
+5. 自托管之前的 "CDN 可用" 是因为早期版本在主线程加载（`document.createElement('script')`），经典 UMD → window global；切到 Worker 后经典 loader 对 CDN 和自托管**同样不兼容**，只是自托管先暴露了问题
+
+**修复：**
+- `forVisionTasks(url, **true**)` → 加载 `vision_wasm_module_internal.*`（ES module 版本）
+- HTML preload 同步改为 `vision_wasm_module_internal.wasm`
+- 添加 self → CDN 多源 fallback（`for (source of SOURCES)` → GPU → CPU）
+- Step 级错误标记（`[self/GPU] fileset resolve: …`）
+
+---
+
+**当前决策：** 先 ship 首访与 same-frame geometry 修正；然后拿真实人手视频做 3 秒测试。  \\n**信心：** 高（源码/构建/live/资产）；中（用户与真机反应）。  \\n**Owner：** Liz 决定真实素材与 distribution；Hermes 负责代码、审计闭环与 deployment verification。  \\n**下个 checkpoint：** push 后线上 smoke；随后 5–10 个非技术观察者 + 至少 Android/iOS 各一台真机。

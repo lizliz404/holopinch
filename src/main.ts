@@ -50,7 +50,7 @@ const DEMO_STATUS_SHORT = 'Demo';
 const START_STATUS_FULL = 'Drag the light — camera wakes on its own';
 const START_STATUS_SHORT = 'Camera…';
 /** Keep in emitted JS so Cloudflare custom-domain asset URLs rotate after cache poison. */
-const BUILD_ID = 'model-timeout-retry-2026-07-28b';
+const BUILD_ID = 'module-wasm-loader-2026-07-28c';
 if (typeof document !== 'undefined') {
   document.documentElement.dataset.build = BUILD_ID;
 }

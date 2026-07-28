@@ -13,7 +13,8 @@
     <meta name="theme-color" content="#0a0a0c" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
 
-    <link rel="preload" href="/mediapipe/wasm/vision_wasm_internal.wasm" as="fetch" type="application/wasm" crossorigin />
+    <!-- Module-worker path uses vision_wasm_module_internal.* (forVisionTasks(_, true)) -->
+    <link rel="preload" href="/mediapipe/wasm/vision_wasm_module_internal.wasm" as="fetch" type="application/wasm" crossorigin />
     <link rel="preload" href="/mediapipe/hand_landmarker.task" as="fetch" crossorigin />
 
     <link rel="preconnect" href="https://fonts.googleapis.com" />
