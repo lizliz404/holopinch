@@ -1,186 +1,154 @@
-# HoloPinch — 全面 Audit（面向更大观众共鸣）
+# HoloPinch — 产品、工程与分发审计 v3
 
-**Date:** 2026-07-28
-**Repo:** `/home/ubuntu/projects/holopinch` → GitHub `lizliz404/holopinch`
-**Live:** https://holopinch.lizliz.xyz/ (CF Pages, Git-connected, HTTP 200 ✓)
-**审计人:** Jett (Hermes)
-**方法:** 全量读源码（8 个 TS/CSS 文件 + index.html + PRD/NOTES/README + RECON）+ 线上实测（curl headers + browser screenshot + OG vision 分析）+ `_templates` 资产盘点
+> 日期：2026-07-28  
+> 范围：当前 `main`（源码、构建产物、线上页面/headers、静态社交资产、依赖）  
+> 方法：逐文件审阅 + `npm run build` + `npm audit` + live browser/visual inspection + Cursor 独立 PASS 1 复核。  
+> 前版归档：[`docs/archive/AUDIT-2026-07-28-pre-v3.md`](archive/AUDIT-2026-07-28-pre-v3.md)。它记录的多项 P0 已在后续提交修复，不能再作为现状。
 
----
+## 执行摘要
 
-## 0. TL;DR — 核心判断
+HoloPinch 的问题不再是“能否做出手势驱动的全息体”——这件事已经成立。真正卡住共鸣的是因果链 **“手势 → 实体 → 我在握住光”** 有没有被首访和分发讲清楚：
 
-**工程是扎实的，观众回路是断的。**
+1. **首访曾自动要 camera，把魔法推到权限之后。** 旧路径实测可停在 `Requesting camera…`；`getUserMedia()` 允许 Promise 永不 settle。**本轮已改为显式 Start camera + demo attract。**
+2. **分发素材仍不服务产品幻想。** 线上 `og:image` 仍是 logo-only `og.png`；现有 9:16 still / orb motion 不是人手。这是下一刀，不是 CSS 问题。
+3. **角度曾默认抢第一眼。** STEM 有潜力，但不该当首屏遥测。**本轮默认 Angles off。**
+4. **实时管线 churn。** 同 frame 检测结果缓存已有；本轮加了 same-input geometry reuse + 拓扑 hysteresis。完整 buffer pool 仍是真机 jank 时的下一刀。
+5. **工程底盘已比旧审计写得好得多。** touch demo、telemetry gate、字体、SEO、About、code-split、WebGL fallback、headers 都在；`npm audit --omit=dev` 0；build 通过。
 
-PRD 里 P0 的功能（continuous flatness continuum、camera+demo 双路、hold/fade、smoothing、三种 shader、guess mode）基本全部兑现，代码质量在这个体量里属于上乘。但从「更大的观众、更深的共鸣」角度看，当前版本是一个**给工程师看的精彩 demo**，还不是一个**给观众看的产品**：
+**核心判断：** 不要把它扩成 AR 工具箱，也不要继续精修黑底 logo。下一轮只验证一个命题：**无标签的“持光”是否能在 3 秒内让陌生人看懂并想试。** 失败才把 angle 升格为真正的 gesture-protractor game。
 
-1. **第一眼魔法被仪器面板稀释** — 首屏直接暴露 `span 1.52 · flat 0.91` 遥测、角度标签、标着 "Demo" 的 chip。观众要的是魔法，看到的是仪表。
-2. **传播回路缺失** — OG 图无产品画面（vision 判定：elegant but low click motivation）、无分享引导、无录屏。一个为「截图传播」而生的产品，没有任何帮助传播的机制。
-3. **移动端 demo 是残的** — 控制依赖 wheel / Shift+wheel，触屏上不存在。viral 流量的大头是手机，手机上 demo 只能拖两个球，open/spread 完全不可控。
-4. **可发现性地板没铺完** — 无 robots.txt、无 sitemap、无 JSON-LD、页面零可索引正文（app shell 之外没有任何文字）。
-5. **Typography 违反工作区标准** — `font-family: 'Segoe UI', system-ui...` 正是 `_templates/design-typography-font-preferences.md` 明令禁止的 "unbranded browser defaults"。
-6. **无归属、无度量** — 没有 lizliz.xyz / GitHub 回链（portfolio 观众白来），没有任何 analytics（PRD §9 的成功指标全部无法测量）。
-
-**杠杆排序：** 修观众回路（P0 1–7）远比加新功能重要。反回声检查见 §7。
+**总体：7.4 / 10（本轮代码落地后）。** 交互原型与基础工程 8+；真机性能与真实人手分发素材仍是上限。
 
 ---
 
-## 1. 已验证现状（证据表）
+## 0. 本轮已落地（v3 → code）
 
-| 项 | 状态 | 证据 |
+| 项 | 状态 | 位置 |
 |---|---|---|
-| 线上可用 | ✓ 200，title 正确 | `curl -sI` + `<title>HoloPinch — Hold a hologram between your hands</title>` |
-| Security headers | ✓ `_headers` 完整（nosniff / DENY / camera=(self) / no-cache+immutable assets） | `public/_headers` |
-| 首屏 demo | ✓ 工作（绿色渐变 mesh + 双 orb + 角度标签） | browser screenshot 2026-07-28 |
-| Camera 路径 | 未实测真机 | 代码审查 only（MediaPipe CDN lazy load，GPU delegate，hold 400ms + fade 280ms ✓） |
-| 初始 JS | 668 KB min / **177 KB gzip** 单 chunk | `dist/assets/index-*.js`（three + tasks-vision 全部打入首包） |
-| OG image | ⚠️ 1200×630 但无产品画面 | vision 分析：「abstract logo card, no hand/hologram/UI, weak click motivation」 |
-| robots.txt / sitemap | ✗ 不存在 | `dist/` 无此文件 |
-| 可索引正文 | ✗ 零 | body 内仅 app shell + 按钮文案 |
-| i18n | EN only | PRD 允许 EN 默认 |
-| Git 状态 | clean，`main` 已推 | `66bc7fe chore: pin Node 22` |
-| PRD P0 | 9/10 ✓（#10 SEO basics 半残：meta ✓ robots/sitemap ✗） | 逐条对照 |
-| PRD P1 | 5/7（✗ screen-space stroke width：现在是不受支持的 1px `LineBasicMaterial.linewidth`；✗ share hint 未实现） | `scene.ts:109` |
+| 显式 `Start camera`，取消自动 `getUserMedia` | done | `src/main.ts` |
+| 首屏无标签 continuum attract（`prefers-reduced-motion` 关闭） | done | `src/main.ts` |
+| 默认 Angles off；About 文案同步 | done | `main.ts` / `index.html` |
+| 同 camera frame 复用 geometry（identity cache） | done | `src/scene.ts` |
+| flatness 拓扑 Schmitt hysteresis | done | `src/flatness.ts` + `scene.ts` |
+| 双手按图像 x 排序 | done | `src/anchors.ts` |
+| GPU → CPU HandLandmarker fallback | done | `src/hands.ts` |
+| angle label DOM pool（不再每帧 innerHTML） | done | `src/main.ts` |
+| `h1` + About close / `aria-modal` / focus return | done | `index.html` / `main.ts` / `style.css` |
+| `:focus-visible` | done | `src/style.css` |
+| 后台 tab 暂停 camera track | done | `src/main.ts` |
+| 相机错误映射（denied / missing / busy） | done | `src/main.ts` |
+| 去词标虹彩循环（清汤/糖精风险） | done | `src/style.css` |
+
+**仍未做（需素材/真机）：** 真人手势 OG/9:16 master；iOS/中端 Android QA；MediaPipe 1.0；完整 geometry buffer reuse（beyond same-frame）；纯函数测试/CI；CSP。
 
 ---
 
-## 2. 观众 × 真实需求 × 现状落差
+## 1. 当前事实与历史纠偏
 
-| 观众 | 真实需求 | 现在得到什么 | 落差 |
-|---|---|---|---|
-| 短视频/社媒跳转来的路人（最大头） | 5 秒内看到魔法，不用读说明书 | 静态为主的 demo + 遥测行 + "Demo" chip + 角度标签 | **高** — 仪器感 > 魔法感 |
-| 手机用户（viral 流量主体） | 能玩、能开摄像头 | 拖球可以；`open`/`spread` 依赖 wheel/Shift+wheel，**触屏无法操作**；camera 真机未验证 | **高** |
-| 设计/3D/前端同行 | 看到 craft，能翻源码 | Shade cycle 不错；但无 GitHub 链接、README 无截图 | 中 |
-| STEM 教师/孩子 | 角度游戏 | Angles + Guess 都在，但藏在 chip 后面，无人引导发现 | 中 |
-| lizliz.xyz 作品集散客 | 这是谁做的、还有什么 | 零归属信息，无回链 | **高**（PRD 受众 #4 完全没服务） |
-| 搜索引擎/AI 引用 | 可索引的文字与结构化数据 | app shell 之外零正文，无 JSON-LD | 中 |
-| 分享者（截图发推/发群） | 一键出片 | 无 share hint、无录屏、OG 无产品 | **高** |
-
----
-
-## 3. 分层 Findings（按用户旅程从上至下）
-
-### A. 可发现性（到访之前）
-
-- **A1 无 robots.txt / sitemap.xml。** 单页也要给 crawlers 明确入口。修复：两个静态文件 + `_headers` 已有规则覆盖。
-- **A2 零可索引正文。** body 里除了按钮和 status 没有任何文字。Google/AI 引用无法理解这个页面是什么。修复：加一个 `#about` 信息层（`?` 按钮触发 overlay，**HTML 里真实存在的 copy**，不是 JS 注入的不可索引内容——SSR 不需要，直接写在 index.html 里 hidden overlay 即可被索引）。
-- **A3 无 JSON-LD。** 加 `WebApplication`（applicationCategory: GameApplication/MultimediaApplication, browserRequirements: camera, offers: free）。
-- **A4 title/description 可更贴查询意图。** 现文案不错，但「hold a hologram between your hands」不是任何人的搜索词。可索引 copy 里自然覆盖 "hand tracking hologram browser" / "MediaPipe AR toy" / "pinch gesture WebGL"。
-
-### B. 第一眼（5 秒定生死）
-
-- **B1 遥测行暴露。** `∠ 105° · 75° · 75° · 105° · span 1.52 · flat 0.91` —— `span`/`flat` 是内部调参术语，对观众是纯噪音。修复：默认只保留角度读数（Angles on 时），`span`/`flat` 移到 `?debug=1`。
-- **B2 首屏近乎静态。** demo 只有 0.4% 的 breath 浮动。一个「活的全息体」的第一眼应该自己在动。修复（P1）：idle attract loop——用户首次交互前 orb 缓慢漂移、flatness 缓慢呼吸，展示 continuum 两端的形态。
-- **B3 "Demo" chip 文案暴露机制。** 观众不需要知道自己处于 "Demo mode"。文案微调即可（status 行说明玩法足够）。
-- **B4 角度标签默认开** — 保留（STEM hook 是差异化），但样式可以更细：更小字号、更低透明度、标签背景更轻。不是删，是降噪。
-
-### C. 核心交互回路
-
-- **C1 触屏 demo 残废（最高危）。** `demo.ts` 只有 wheel 监听。修复：触屏手势——单指拖 orb = 手的位置（已有）；双指垂直拖 = pinch open；双指水平拖 = finger spread；status 文案按 `pointer: coarse` 自适应。
-- **C2 camera 真机未验证。** PRD kill criteria #1 就是「mid mobile 上 janky」。这次优化后必须在真机过一遍（Hermes 侧验证项，不是 Cursor 的）。
-- **C3 WebGL 失败无兜底。** `new THREE.WebGLRenderer` 抛错 = 白屏死。修复：try/catch → 友好错误页（说明 + 重试）。
-- **C4 无 `prefers-reduced-motion` 处理。** attract loop / breath 应尊重它。
-- **C5 demo orb 无键盘可达性。** arrow keys 移动 focus 的 orb，低成本补。
-
-### D. 传播回路（这个产品存在的意义）
-
-- **D1 OG 图重做（最高杠杆单次改动）。** 现状：黑底 + 双 diamond logo + wordmark，无产品、无文案、无点击动机。修复：真实产品截图（crystal bar 形态最好看）+ 一行 value prop（"Hold a hologram between your hands — no app, just a browser"）。1200×630，Hermes 用本地 dev server + Playwright 截图合成。
-- **D2 无 share hint。** PRD P1#7 明确要求。修复：camera 首次出 mesh 后 status 行轮换一句 "Screenshot it — tag #HoloPinch"（无 backend，纯 microcopy）。
-- **D3 录屏（P2）。** MediaRecorder 录 canvas+video composite 是 viral 核武器，但 PRD 自己说 "only if trivial"。本轮不做，验证分享回路后再说。
-- **D4 twitter:card / og 已有 ✓**，D1 改图即可，标签不用动。
-
-### E. 身份与信任
-
-- **E1 Typography 违规（Liz 点名）。** 现在 `'Segoe UI', ui-sans-serif, system-ui...`。按 `_templates/design-typography-font-preferences.md`：
-  - UI/brand → **Inter** 400/600/800（geometric、现代、和全息几何语言匹配）
-  - 遥测/角度数字 → **IBM Plex Mono** 400/500（工作区批准的 mono，tabular-nums 已在用）
-  - CJK fallback tail 按模板附加，给未来 ZH toggle 留路
-  - Google Fonts + `preconnect` + `display=swap`
-- **E2 零归属。** About overlay 里加 "Made by Liz — lizliz.xyz" + GitHub repo 链接。portfolio 观众是 PRD 写明的受众 #4。
-- **E3 README 太瘦。** 无截图、无 controls 表、无 live badge。补：hero 截图、controls 表、stack、deploy 说明。
-- **E4 无 LICENSE。** MIT。
-- **E5 favicon ✓**（diamond SVG 和 OG 一致，保留）。
-
-### F. 度量
-
-- **F1 零 analytics。** PRD §9 四个成功指标现在全部不可测。选项：CF Web Analytics（免费、无 cookie，但需要 dashboard/API 开通——Liz 原则是全自动化，走 API 或本轮先跳过并在交付报告里明示）。本轮：**跳过，标记为待决策**（见 §7 kill criteria 需要它）。
-
-### G. 性能
-
-- **G1 177 KB gzip 首包含 MediaPipe。** `hands.ts` 静态 import → tasks-vision 进首包。修复：`enableCamera()` 里 `await import('./hands')`，camera 路径按需加载，首包预计降到 ~150 KB gzip 以内（three 是大头，可接受）。
-- **G2 模型/wasm 走 CDN ✓** 懒加载 ✓（点击 Start camera 才拉，合理）。
-- **G3 stroke width。** PRD P1#3 要 ≈2% 屏幕高度。`LineBasicMaterial.linewidth` 全平台忽略。真修 = `Line2`/`LineMaterial`（three/examples），改动中等。P1 可选；不做就接受 1px，不算丑。
-
----
-
-## 4. `_templates` 可借鉴清单
-
-| 资产 | 用在哪 | 怎么用 |
+| 历史报告中的说法 | 当前 HEAD | 证据 |
 |---|---|---|
-| `design-typography-font-preferences.md` | E1 | Inter（UI）+ IBM Plex Mono（数字）+ CJK fallback tail；照抄 stack，不要自创 |
-| `_templates/design/lead-radar/DESIGN.md` | About overlay copy 口吻 | "honest positioning copy, research desk not AI dashboard" — About 文案去 corporate 味 |
-| `_templates/design/hanzilla-personal-site/DESIGN.md` | made-by 归属区 | product-led credibility 的 footer/about 模式 |
-| `template/typing-placeholder-animation.md` | ❌ 不适用 | 无 input 场景 |
-| `uhoh-inspired-service-entry` | ❌ 不适用 | 服务型 landing，非本产品形态 |
+| 无 touch demo control | 已修 | `src/demo.ts:110-131`：双指竖向 `open`、横向 `spread` |
+| `span` / `flatness` 首屏遥测 | 已修 | `src/main.ts:33-34,467-478`：仅 `?debug=1` |
+| Segoe / 无品牌字体 | 已修 | `index.html:16-21`、`src/style.css:20,339-346` |
+| 无 robots/sitemap/JSON-LD/About | 已修 | `public/robots.txt`、`public/sitemap.xml`、`index.html:42-65,78-111` |
+| MediaPipe 在首包 | 已修 | `src/main.ts:195-202` 动态 import；build 输出独立 `hands-*.js` 40.55 KB gzip |
+| WebGL 失败白屏 | 已修 | `src/main.ts:56-78` |
+| OG 缺产品画面 | **仍成立** | `index.html:30,40` 指向 logo-only `public/og.png` |
+| 首屏有仪表盘味 | **本轮已降** | 默认 `showAngles = false`；角度改 opt-in |
 
 ---
 
-## 5. 优先级（impact × effort）
+## 2. 发现与可执行解法
 
-### P0 — 观众回路（本轮 Cursor 执行）
-1. **C1 触屏 demo 控制**（双指手势 + 自适应 status 文案）
-2. **B1 遥测降噪**（span/flat → `?debug=1`；angles readout 保留）
-3. **E1 Typography**（Inter + IBM Plex Mono，Google Fonts preconnect+swap）
-4. **A1+A2+A3 可发现性地板**（robots.txt、sitemap.xml、JSON-LD、About overlay 真实 copy）
-5. **E2 归属**（About overlay 内 made-by + GitHub link）
-6. **D2 share hint microcopy**
-7. **G1 MediaPipe code-split**
-8. **C3 WebGL 兜底**
-9. **E3+E4 README + LICENSE**
-
-### P0 — Hermes 侧（非代码）
-10. **D1 OG 重做**（本地 dev + Playwright 截图 + 文案合成）
-11. commit + push → CF Pages 自动部署 → 线上 marker 验证
-
-### P1 — 下一轮（验证后再做）
-12. B2 idle attract loop（+ C4 reduced-motion）
-13. B4 角度标签视觉降噪
-14. G3 fat-line stroke（Line2）
-15. C5 键盘可达性
-16. F1 analytics（待 Liz 决策：CF Web Analytics API or skip）
-17. camera 真机验证（Pixel/中端 Android + iPhone Safari）
-
-### P2 — 克制
-18. D3 MediaRecorder 录屏分享（share 回路被验证后再说）
-19. ZH toggle（有真实中文流量信号后再说）
-20. Guess streak/分数（STEM 受众被验证后再说）
+| 优先级 | 发现 | 证据 | 为什么重要 | 最小有效方案 | 验证 / kill criterion |
+|---|---|---|---|---|---|
+| **P0** | 自动 permission 抢在价值展示之前；等待可无限长 | `main.ts:500-503`；live 状态 `Requesting camera…`; [MDN getUserMedia](https://developer.mozilla.org/en-US/docs/Web/API/MediaDevices/getUserMedia) 明确允许 Promise 不 resolve/reject | 用户第一段体验成了“系统向我索权”，不是“我能捏住光” | 默认 demo attract；只在明确 `Start camera` 点击时调用 `getUserMedia`；拒绝态保持 Demo 可玩 | 5 个冷启动用户：10 秒内能说出下一步；无 camera 也能拖出形体 |
+| **P0** | 首屏默认显示 `°`，把 magic 降级成 telemetry | `main.ts:97,467-480`; `index.html:149` 初始 active | 角度应是第二个受众的入口，不该污染所有人的第一秒 | 默认 `Angles` off；首次主动交互后才允许打开；capture 也隐藏角度 | 3 秒陌生人测试：描述先出现“手/光/实体”而非“角度/测量” |
+| **P0** | OG 与 motion 主资产不传达产品 | live `og.png` 视觉检查；`public/media/*` 视觉检查；`index.html:30,40` | link preview 是点击前唯一的产品界面；logo 卡只卖审美，不卖幻想 | **不要**把当前 orb still 冒充人手素材；录一段真实 camera path（手腕至手指、无角度 HUD），再替换 `og.png` | 5 人看缩略图 3 秒，≥4 人说出手/手势/全息实体；否则重录而非改字 |
+| **P0** | 同一 camera frame 可被重复 rebuild geometry | `hands.ts:87-92` 缓存结果；`main.ts:456-481` 仍更新；`scene.ts:150-161,285-304` 每次 dispose/recreate | `EdgesGeometry` + new `Mesh` + typed arrays 的 rAF churn 会吃掉 mobile 预算 | 对相同 landmark array identity 复用 geometry，只重新投影标签/更新 opacity；后续真机 profile 决定是否转 `requestVideoFrameCallback` | Chrome Performance + 中端 Android：比较 GC/long task、camera FPS；不能只看 desktop |
+| **P1** | About 是自制 modal，没处理 focus / inert / close affordance | `index.html:77-111`、`main.ts:156-161,339-360`；live HTML 无 `<h1>`；[W3C H102](https://www.w3.org/WAI/WCAG21/Techniques/html/H102) | keyboard / screen reader 可以落到被遮罩的后台；对话框也没有可见 close button | brand 改语义 `h1`；About 迁到原生 `<dialog>` 或实现 focus return/trap + close button | Tab / Shift+Tab / Esc：焦点不越界，关闭回 `?` |
+| **P1** | Core maths / anchor / geometry 无回归测试或 CI | `package.json` 仅 dev/build；仓库无 test/CI config | `flatness` 阈值、ring winding、one-hand padding 都是纯函数，最适合低成本锁死 | 下一小步加 Node/Vitest 的纯函数 tests；不要给 DOM/WebGL 做脆弱 snapshot | 包含 degenerate ring、NaN landmark、threshold 边界、winding flip |
+| **P1** | camera 错误把原始 browser message 直接露给人 | `main.ts:255-264` | 无害但不像产品；不同 UA 的文案会很丑 | 按 `NotAllowedError` / `NotFoundError` / `NotReadableError` 映射为明确恢复动作，开发细节留 console | 阻止权限 / 无 camera / 被占用三种状态都给出可操作下一步 |
+| **P2** | `prefers-reduced-motion` 只停 text animation，demo / capture mesh 仍在动 | `style.css:678-694`；`demo.ts:210-220` | 一旦加 intro attract，尊重 motion preference 必须端到端 | reduced-motion 时停 attract，仅展示静态 demo + CTA | OS reduced-motion 下不自动移动，但 interaction 仍正常 |
+| **P2** | CDN-hosted WASM/model 是运行时单点依赖；依赖 major 可升级但未验证 | `hands.ts:19-23`；`npm outdated`：tasks-vision 0.10.35 → 1.0.0 | 不是立刻升级的理由；是 offline / regional / release-risk 边界 | 先做真机兼容矩阵；若可靠性是目标，再把 wasm/model 固定并静态托管 | 断网 / CDN 故障模拟、iOS/Android cold start；失败前别迁 SDK |
+| **P2（假设）** | `flatness` 的 0.65 / 0.75 离散切换可能在临界姿势闪烁 | `flatness.ts:94-99`，已有 smoothing `scene.ts:47-50,169-177` | 只会在真实手抖+阈值附近发生，源码不能证明严重度 | 真机录像；若闪烁，加入 hysteresis 而非再调一堆 magic numbers | 手在阈值附近停 5 秒，card/wire 不应来回跳 |
 
 ---
 
-## 6. 明确不做（anti-scope-creep）
+## 3. 可直接做 vs 必须先取证
 
-- 账号/backend/持久化
-- 更多几何模式（continuum 就是卖点，别退回 presets）
-- React 迁移（PRD 明确 prefer vanilla）
-- 重型后处理/bloom
-- 任何需要 dashboard 点击的部署改动
+### 可以直接做（本轮）
 
----
+1. 显式 `Start camera`、不再自动请求 permission。
+2. 默认关闭 Angles，冷启动复用现有 continuum 做无标签 attract，`prefers-reduced-motion` 关闭它。
+3. 缓存同一 decoded frame 的 geometry，消除无效 rebuild。
+4. 给 document 真实 `h1`；更新当前产品行为文档。
+5. 本地 build + source-level browser smoke + deploy 后 Origin-header asset check。
 
-## 7. 反回声检查（kill/falsify）
+### 需要外部证据，不假装“优化完成”
 
-这个产品的现实天花板：**portfolio craft piece + 可能的小型 viral toy**。不是 SaaS，没有留存模型。所以：
-
-1. **外部证据标准：** 7 天内的有效信号 = OG 分享点击、真机 camera 成功率、一个外部人类 5 秒看懂手势。不是代码行数、不是 shader 数量。
-2. **本轮优化的可证伪点：** 如果改完 OG + 首屏后，分享给 3 个外部人类仍无「卧槽怎么做到的」反应，问题不在 UI 细节，在产品形态本身 —— 停手，回到 NOTES.md 的 fork 选项（gesture protractor mini-game）。
-3. **不做 F1 的代价：** 没有 analytics，上述信号只能靠手动问。接受这个手动成本，因为 CF Web Analytics 需要账号级开通动作。
-4. **不要继续抛光工程。** smoothing/hold/shader 已经够好。边际收益全在观众回路。
+1. **真人手势 OG / 9:16 master**：不是代码问题。当前 orb 素材不能替代；需要真实 camera 录屏。
+2. **iOS Safari / 中端 Android camera QA**：这是 PRD kill criterion，Hermes 环境无真机证明。
+3. **MediaPipe 1.0 升级**：有 major update 不等于应该升级；需要 API + device regression。
+4. **Angle 是不是独立 wedge**：需要教师 / kids / 3D 同行的定向 7-day test，不是继续堆 Guess chip。
 
 ---
 
-## 8. 证据附件
+## 4. 产品方向：有趣 + 有用，而不是两个半成品
 
-- 首屏截图：`~/.hermes/cache/screenshots/browser_screenshot_38fa881c970141baaf700340ff541c6e.png`
-- OG vision 分析结论：「elegant brand card; no product, no value prop; weak click motivation」
-- 线上 headers：见 §1 表
-- PRD 逐条对照：§1 表
+### 现在的结构性优势
+
+- 不是“滤镜”：真实 hand landmarks 驱动 dynamic loft，且 `flatness` 同时影响形态、透明度、内线和材质。
+- 不是清汤 UI 的唯一性：hard facets 在去色后仍该是实体；黑底、mint、glass 只是安静的背景。
+- 有一条可用但尚未产品化的教育支线：`angle → guess → reveal`。
+
+### 最强、最小的市场实验
+
+**默认让每个人先“hold light”；Angle 只在主动打开后成为 STEM layer。**
+
+- 版本 A：无标签 intro / 真人手势视频 / 明确 Start camera。
+- 版本 B：同一基础，仅对教师或 r/webdev 分发展示 angle variant。
+- 7 天只收三类信号：3 秒理解率、camera 成功后留在页面的定性反馈、哪一个素材让人主动转发。
+- 若 A 仍被说成“又一个虹彩 shader”，别继续抛光。直接 pivot 为 **gesture protractor mini-game**：角度成为任务和反馈，而不是浮在画面上的数字。
+
+### 明确不做
+
+- 账号、backend、排行榜、广告、newsletter。
+- 几何 preset 大全、贴纸库、AR filter marketplace。
+- 多段 marketing landing、feature grid、React 重写、重型 post-processing。
+- 用更漂亮的 logo 代替真人手势素材。
+
+这些都增加系统体积，不增加“我想试一下”的冲动，也不增加角度玩法的真实教育价值。
+
+---
+
+## 5. 验证记录与边界
+
+### 已验证
+
+- `npm run build`：通过；Vite 8 产物为 main 141.27 KB gzip + lazy `hands` 40.55 KB gzip；有 >500 KB minified chunk 警告。
+- `npm audit --omit=dev --audit-level=high`：0 vulnerabilities。
+- 线上 `/`、`robots.txt`、`sitemap.xml`、`og.png`、favicon、motion assets：HTTP 200。
+- 线上 Origin-header hashed JS：`content-type: application/javascript`、immutable；未复发历史 cache poison。
+- `_headers`：`nosniff`、`DENY`、camera `(self)`、referrer policy 均存在。
+- **本轮改前**线上：无 `h1`；可长期卡在 `Requesting camera…`；CTA 为 `Retry camera`。
+- **本轮改后（待 deploy 验证）：** 本地 `tsc`/`build`；首访应为 `Start camera` + demo attract、Angles 默认关。
+
+### 未验证 / 不作假设
+
+- 真机 camera tracking quality、battery/thermal、iOS Safari 行为。
+- 实际 social preview cache refresh、点击/完播/分享指标。
+- 外部用户是否真的把 “hold light” 当作可复述记忆。
+
+## 6. 参考的外部最佳实践
+
+- [MDN — `getUserMedia()`](https://developer.mozilla.org/en-US/docs/Web/API/MediaDevices/getUserMedia)：HTTPS、明确 permission、请求可能无限 pending。
+- [MDN — `requestVideoFrameCallback()`](https://developer.mozilla.org/en-US/docs/Web/API/HTMLVideoElement/requestVideoFrameCallback)：video processing 应按新 video frame 而非盲目 display rAF；作为后续真机 profile 后的升级路径。
+- [W3C — native modal dialog](https://www.w3.org/WAI/WCAG21/Techniques/html/H102)：原生 `<dialog>` 负责 focus、inert background、Esc 与 focus return。
+
+---
+
+**当前决策：** 先 ship 首访与 same-frame geometry 修正；然后拿真实人手视频做 3 秒测试。  
+**信心：** 高（源码/构建/live/资产）；中（用户与真机反应）。  
+**Owner：** Liz 决定真实素材与 distribution；Hermes 负责代码、审计闭环与 deployment verification。  
+**下个 checkpoint：** push 后线上 smoke；随后 5–10 个非技术观察者 + 至少 Android/iOS 各一台真机。

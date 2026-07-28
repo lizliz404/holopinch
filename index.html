@@ -70,13 +70,22 @@
       <canvas id="overlay"></canvas>
 
       <header id="topbar" data-brand="loading">
-        <div class="brand">HoloPinch</div>
+        <h1 class="brand">HoloPinch</h1>
         <p class="tagline">Hold light between your hands. No app. Just a browser.</p>
       </header>
 
       <div id="about-backdrop" class="hidden" aria-hidden="true"></div>
-      <aside id="about-panel" class="hidden" role="dialog" aria-label="About HoloPinch">
-        <h2>HoloPinch</h2>
+      <aside
+        id="about-panel"
+        class="hidden"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="about-title"
+      >
+        <button type="button" id="about-close" class="about-close" aria-label="Close about">
+          ×
+        </button>
+        <h2 id="about-title">HoloPinch</h2>
 
         <h3>What</h3>
         <p>
@@ -86,13 +95,16 @@
 
         <h3>Play</h3>
         <p>
-          Camera starts itself. Show one or both hands; pinch or spread. Closer + flat → foil card.
-          Farther + open → crystal bar. Best with two hands. No camera? Open controls → Demo, drag
-          the orbs.
+          Tap <strong>Start camera</strong>, then pinch or spread one or both hands. Closer + flat →
+          foil card. Farther + open → crystal bar. Best with two hands. Prefer Demo? Drag the orbs on
+          stage (open controls for more).
         </p>
 
         <h3>Angles</h3>
-        <p>Turn on Angles / Guess to read or guess the pinch quad’s interior angles.</p>
+        <p>
+          Angles stay off by default so the light stays primary. Open controls → Angles / Guess when
+          you want the STEM layer.
+        </p>
 
         <h3>Tech</h3>
         <p>
@@ -117,12 +129,19 @@
         <div class="hud-bar">
           <button
             type="button"
+            id="btn-cam-quick"
+            title="Start camera"
+          >
+            <span id="status" aria-live="polite">Start camera</span>
+          </button>
+          <button
+            type="button"
             id="hud-toggle"
             aria-expanded="false"
             aria-controls="hud-panel"
+            aria-label="Open controls"
             title="Controls"
           >
-            <span id="status" aria-live="polite">Loading…</span>
             <span class="hud-chevron" aria-hidden="true"></span>
           </button>
           <button
@@ -142,11 +161,11 @@
         <div id="hud-panel" hidden>
           <div id="angles-readout"></div>
 
-          <button id="btn-cam" type="button" class="primary">Retry camera</button>
+          <button id="btn-cam" type="button" class="primary">Start camera</button>
 
           <div class="chips" role="toolbar" aria-label="Modes">
             <button id="btn-demo" type="button" class="chip active" aria-pressed="true">Demo</button>
-            <button id="chip-angles" type="button" class="chip active" aria-pressed="true">Angles</button>
+            <button id="chip-angles" type="button" class="chip" aria-pressed="false">Angles</button>
             <button id="chip-edges" type="button" class="chip active" aria-pressed="true">Edges</button>
             <button id="chip-guess" type="button" class="chip" aria-pressed="false">Guess</button>
             <button id="chip-shade" type="button" class="chip" aria-pressed="false" title="Cycle shade: hybrid → holo → normal">Shade</button>

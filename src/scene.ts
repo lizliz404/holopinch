@@ -43,6 +43,12 @@ export class PrismScene {
   private showWire = true;
   private clock = new THREE.Clock();
   private meshOpacityMul = 1;
+  private baseOpacity = 0.88;
+  private lastInputLeft: Landmark[] | null = null;
+  private lastInputRight: Landmark[] | null = null;
+  private lastMirrorX = false;
+  private lastResult: UpdateResult = { angles: [], span: 0, flatness: 0 };
+  private lastTopo = { internalWires: true, usePerimeterOnly: false };
 
   private smoothLeft: THREE.Vector3[] | null = null;
   private smoothRight: THREE.Vector3[] | null = null;
@@ -132,6 +138,7 @@ export class PrismScene {
   /** Soft fade multiplier 0..1 (lost-hand hold). */
   setFade(mul: number): void {
     this.meshOpacityMul = THREE.MathUtils.clamp(mul, 0, 1);
+    this.applyOpacity();
   }
 
   get isHolding(): boolean {
@@ -158,6 +165,16 @@ export class PrismScene {
       this.wire.geometry.dispose();
       this.wire = null;
     }
+    this.lastInputLeft = null;
+    this.lastInputRight = null;
+  }
+
+  private applyOpacity(): void {
+    const opacity = this.baseOpacity * this.meshOpacityMul;
+    for (const mat of [this.matHybrid, this.matNormal, this.matHolo]) {
+      if (mat.uniforms.uOpacity) mat.uniforms.uOpacity.value = opacity;
+    }
+    this.matWire.opacity = 0.95 * this.meshOpacityMul;
   }
 
   private activeMat(): THREE.ShaderMaterial {
@@ -247,6 +264,19 @@ export class PrismScene {
       return { angles: [], span: 0, flatness: 0 };
     }
 
+    const sameInput =
+      left === this.lastInputLeft &&
+      right === this.lastInputRight &&
+      mirrorX === this.lastMirrorX &&
+      !!this.mesh &&
+      !!this.smoothCorners;
+    if (sameInput) {
+      return {
+        ...this.lastResult,
+        angles: this.projectAngles(this.smoothCorners!),
+      };
+    }
+
     const targetL = handSectionFromLandmarks(left, toV, SECTION_TIPS);
     const targetR = handSectionFromLandmarks(right, toV, SECTION_TIPS);
     const alignedR = alignRingWinding(targetL, targetR);
@@ -267,9 +297,12 @@ export class PrismScene {
       leftRing: this.smoothLeft,
       rightRing: this.smoothRight,
       span,
+      prev: this.lastTopo,
     });
-
-    const opacity = params.opacity * this.meshOpacityMul;
+    this.lastTopo = {
+      internalWires: params.internalWires,
+      usePerimeterOnly: params.usePerimeterOnly,
+    };
 
     let geo: THREE.BufferGeometry;
     if (params.usePerimeterOnly) {
@@ -284,14 +317,13 @@ export class PrismScene {
 
     this.clearMesh();
     const mat = this.activeMat();
-    if (mat.uniforms.uOpacity) mat.uniforms.uOpacity.value = opacity;
     if (mat.uniforms.uFilmMix) mat.uniforms.uFilmMix.value = params.filmMix;
     if (mat.uniforms.uFlatness) mat.uniforms.uFlatness.value = params.flatness;
 
     this.mesh = new THREE.Mesh(geo, mat);
     this.scene.add(this.mesh);
-
-    this.matWire.opacity = 0.95 * this.meshOpacityMul;
+    this.baseOpacity = params.opacity;
+    this.applyOpacity();
 
     if (params.usePerimeterOnly || !params.internalWires) {
       const loopGeo = buildPerimeterLoop(this.smoothCorners);
@@ -303,7 +335,21 @@ export class PrismScene {
     this.wire.visible = this.showWire;
     this.scene.add(this.wire);
 
-    const corners = this.smoothCorners;
+    this.lastInputLeft = left;
+    this.lastInputRight = right;
+    this.lastMirrorX = mirrorX;
+    this.lastResult = {
+      angles: this.projectAngles(this.smoothCorners),
+      span,
+      flatness: params.flatness,
+    };
+    return this.lastResult;
+  }
+
+  private projectAngles(corners: THREE.Vector3[]): AngleLabel[] {
+    const canvas = this.renderer.domElement;
+    const w = canvas.clientWidth || window.innerWidth;
+    const h = canvas.clientHeight || window.innerHeight;
     const angleDefs = [
       interiorAngleAt(corners[3], corners[0], corners[1]),
       interiorAngleAt(corners[0], corners[1], corners[2]),
@@ -315,12 +361,12 @@ export class PrismScene {
       const ndc = a.labelPos.clone().project(this.camera);
       return {
         deg: a.deg,
-        x: (ndc.x * 0.5 + 0.5) * canvas.clientWidth,
-        y: (-ndc.y * 0.5 + 0.5) * canvas.clientHeight,
+        x: (ndc.x * 0.5 + 0.5) * w,
+        y: (-ndc.y * 0.5 + 0.5) * h,
       };
     });
 
-    return { angles, span, flatness: params.flatness };
+    return angles;
   }
 
   render(): void {

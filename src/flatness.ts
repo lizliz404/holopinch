@@ -74,6 +74,8 @@ export function deriveMaterialParams(opts: {
   leftRing: THREE.Vector3[];
   rightRing: THREE.Vector3[];
   span: number;
+  /** Previous topology flags for Schmitt hysteresis (reduces threshold flicker). */
+  prev?: { internalWires: boolean; usePerimeterOnly: boolean };
 }): MaterialParams {
   const { corners, leftRing, rightRing, span } = opts;
   const coplanar = coplanarityOfQuad(corners);
@@ -91,8 +93,11 @@ export function deriveMaterialParams(opts: {
 
   const opacity = THREE.MathUtils.lerp(0.55, 1.0, flatness);
   const filmMix = THREE.MathUtils.lerp(0.45, 0.95, flatness);
-  const internalWires = flatness < 0.65;
-  const usePerimeterOnly = flatness > 0.75;
+  // Schmitt triggers so near-threshold poses don't flip topology every frame.
+  const prevW = opts.prev?.internalWires ?? flatness < 0.65;
+  const prevP = opts.prev?.usePerimeterOnly ?? flatness > 0.75;
+  const internalWires = prevW ? flatness < 0.7 : flatness < 0.6;
+  const usePerimeterOnly = prevP ? flatness > 0.72 : flatness > 0.78;
   const edgeThreshold = THREE.MathUtils.lerp(35, 12, 1 - flatness);
   const bulgeScale = THREE.MathUtils.lerp(1.15, 0.08, flatness);
   const minSegments = Math.round(THREE.MathUtils.lerp(5, 2, flatness));

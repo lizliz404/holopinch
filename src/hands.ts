@@ -35,17 +35,31 @@ export class HandTracker {
 
   async init(): Promise<void> {
     const vision = await FilesetResolver.forVisionTasks(WASM_URL);
-    this.landmarker = await HandLandmarker.createFromOptions(vision, {
-      baseOptions: {
-        modelAssetPath: MODEL_URL,
-        delegate: 'GPU',
-      },
-      runningMode: 'VIDEO',
+    const common = {
+      runningMode: 'VIDEO' as const,
       numHands: 2,
       minHandDetectionConfidence: 0.5,
       minHandPresenceConfidence: 0.5,
       minTrackingConfidence: 0.5,
-    });
+    };
+    try {
+      this.landmarker = await HandLandmarker.createFromOptions(vision, {
+        baseOptions: {
+          modelAssetPath: MODEL_URL,
+          delegate: 'GPU',
+        },
+        ...common,
+      });
+    } catch (err) {
+      console.warn('[HoloPinch] GPU HandLandmarker failed; retrying CPU', err);
+      this.landmarker = await HandLandmarker.createFromOptions(vision, {
+        baseOptions: {
+          modelAssetPath: MODEL_URL,
+          delegate: 'CPU',
+        },
+        ...common,
+      });
+    }
   }
 
   async startCamera(video: HTMLVideoElement): Promise<MediaStream> {

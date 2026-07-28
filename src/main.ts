@@ -12,6 +12,7 @@ const statusEl = document.querySelector<HTMLElement>('#status')!;
 const anglesReadout = document.querySelector<HTMLDivElement>('#angles-readout')!;
 const labelsRoot = document.querySelector<HTMLDivElement>('#angle-labels')!;
 const btnCam = document.querySelector<HTMLButtonElement>('#btn-cam')!;
+const btnCamQuick = document.querySelector<HTMLButtonElement>('#btn-cam-quick')!;
 const btnCamCompact = document.querySelector<HTMLButtonElement>('#btn-cam-compact')!;
 const btnDemo = document.querySelector<HTMLButtonElement>('#btn-demo')!;
 const chipAngles = document.querySelector<HTMLButtonElement>('#chip-angles')!;
@@ -27,7 +28,8 @@ const hudPanel = document.querySelector<HTMLElement>('#hud-panel')!;
 const hudToggle = document.querySelector<HTMLButtonElement>('#hud-toggle')!;
 const hudScrim = document.querySelector<HTMLDivElement>('#hud-scrim')!;
 const btnAbout = document.querySelector<HTMLButtonElement>('#btn-about')!;
-const aboutPanel = document.querySelector<HTMLDivElement>('#about-panel')!;
+const aboutPanel = document.querySelector<HTMLElement>('#about-panel')!;
+const aboutClose = document.querySelector<HTMLButtonElement>('#about-close')!;
 const aboutBackdrop = document.querySelector<HTMLDivElement>('#about-backdrop')!;
 
 const params = new URLSearchParams(location.search);
@@ -38,12 +40,15 @@ const motionCapture = params.get('motion') === '1';
 const cleanCapture = params.get('clean') === '1' || motionCapture;
 const skipAutoCamera = motionCapture || params.get('clean') === '1';
 const isCoarsePointer = window.matchMedia('(pointer: coarse)').matches;
+const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 /** Island stays collapsed by default everywhere — expand is opt-in (Dynamic Island scale). */
 const defaultHudExpanded = false;
 const DEMO_STATUS_FULL = isCoarsePointer
   ? 'Demo — drag orbs · two-finger vertical = open · horizontal = spread'
   : 'Demo — drag orbs · scroll = open · Shift+scroll = spread';
 const DEMO_STATUS_SHORT = 'Demo';
+const START_STATUS_FULL = 'Start camera — or drag the light';
+const START_STATUS_SHORT = 'Start camera';
 
 const demo = new DemoHands(app);
 
@@ -82,7 +87,7 @@ function startApp(scene: PrismScene): void {
 let tracker: HandTracker | null = null;
 
 type InputMode = 'demo' | 'camera';
-type BrandState = 'loading' | 'idle' | 'active';
+type BrandState = 'intro' | 'loading' | 'idle' | 'active';
 const SHADE_CYCLE: ShadeMode[] = ['hybrid', 'holo', 'normal'];
 const SHADE_LABEL: Record<ShadeMode, string> = {
   hybrid: 'Shade · hybrid',
@@ -94,7 +99,7 @@ let inputMode: InputMode = 'demo';
 let lastAngles: number[] = [];
 let revealed = false;
 let cameraStarting = false;
-let showAngles = true;
+let showAngles = false;
 let shadeMode: ShadeMode = 'hybrid';
 
 let camLeft: AnchorPair['left'] | null = null;
@@ -107,6 +112,8 @@ let shareHintUntil = 0;
 let aboutOpen = false;
 let hudExpanded = defaultHudExpanded;
 let brandState: BrandState = 'loading';
+let introStage = !motionCapture;
+let introAttracting = !motionCapture && !prefersReducedMotion;
 /** Full status for expanded island; short label for collapsed pill. */
 let statusFull = 'Loading…';
 let statusShort = 'Loading…';
@@ -157,13 +164,21 @@ function setAboutOpen(open: boolean): void {
   aboutOpen = open;
   aboutPanel.classList.toggle('hidden', !open);
   aboutBackdrop.classList.toggle('hidden', !open);
+  aboutBackdrop.setAttribute('aria-hidden', open ? 'false' : 'true');
   btnAbout.setAttribute('aria-expanded', open ? 'true' : 'false');
+  if (open) {
+    aboutClose.focus();
+  } else {
+    btnAbout.focus();
+  }
 }
 
 function syncCamButtons(): void {
   const live = inputMode === 'camera';
   btnCam.classList.toggle('active', live);
-  btnCam.textContent = live ? 'Stop camera' : 'Retry camera';
+  btnCam.textContent = live ? 'Stop camera' : 'Start camera';
+  btnCamQuick.disabled = cameraStarting;
+  btnCamQuick.setAttribute('aria-label', live ? 'Stop camera' : 'Start camera');
   btnCamCompact.classList.toggle('hidden', !live);
   btnCamCompact.disabled = cameraStarting;
 }
@@ -252,15 +267,19 @@ async function enableCamera(): Promise<void> {
     }
     setInputMode('demo');
     setBrandState('idle');
-    const msg = err instanceof Error ? err.message : String(err);
-    const denied =
-      /NotAllowed|Permission|denied/i.test(msg) ||
-      (err instanceof DOMException && err.name === 'NotAllowedError');
+    const name = err instanceof DOMException ? err.name : '';
+    const denied = name === 'NotAllowedError' || /NotAllowed|Permission|denied/i.test(String(err));
+    const missing = name === 'NotFoundError' || /NotFound|no camera|DevicesNotFound/i.test(String(err));
+    const busy = name === 'NotReadableError' || /NotReadable|track|in use/i.test(String(err));
     setStatus(
       denied
-        ? 'Camera blocked — allow permission, or use Demo'
-        : `Camera failed: ${msg} · using Demo`,
-      denied ? 'Blocked' : 'Cam fail',
+        ? 'Camera blocked — allow permission, or drag Demo orbs'
+        : missing
+          ? 'No camera found — drag Demo orbs instead'
+          : busy
+            ? 'Camera in use elsewhere — close other apps, or use Demo'
+            : 'Camera failed — use Demo orbs, or retry Start camera',
+      denied ? 'Blocked' : missing ? 'No cam' : busy ? 'Cam busy' : 'Cam fail',
     );
   } finally {
     cameraStarting = false;
@@ -277,9 +296,15 @@ function disableCamera(): void {
   lastTipCount = 0;
   setInputMode('demo');
   setBrandState('idle');
+  setStatus(START_STATUS_FULL, START_STATUS_SHORT);
 }
 
 btnCam.addEventListener('click', () => {
+  if (inputMode === 'camera') disableCamera();
+  else void enableCamera();
+});
+
+btnCamQuick.addEventListener('click', () => {
   if (inputMode === 'camera') disableCamera();
   else void enableCamera();
 });
@@ -345,6 +370,17 @@ aboutBackdrop.addEventListener('click', () => {
   setAboutOpen(false);
 });
 
+aboutClose.addEventListener('click', () => {
+  setAboutOpen(false);
+});
+
+document.addEventListener('visibilitychange', () => {
+  const stream = video.srcObject as MediaStream | null;
+  if (!stream || inputMode !== 'camera') return;
+  const on = !document.hidden;
+  for (const track of stream.getVideoTracks()) track.enabled = on;
+});
+
 hudToggle.addEventListener('click', () => {
   setHudExpanded(!hudExpanded);
 });
@@ -353,6 +389,17 @@ hudScrim.addEventListener('click', () => {
   setHudExpanded(false);
 });
 
+app.addEventListener(
+  'pointerdown',
+  () => {
+    if (!introStage) return;
+    introStage = false;
+    introAttracting = false;
+    if (inputMode === 'demo') setBrandState('idle');
+  },
+  { passive: true },
+);
+
 window.addEventListener('keydown', (e) => {
   if (e.key === 'Escape') {
     if (aboutOpen) setAboutOpen(false);
@@ -360,20 +407,30 @@ window.addEventListener('keydown', (e) => {
   }
 });
 
+const labelPool: HTMLDivElement[] = Array.from({ length: 4 }, () => {
+  const el = document.createElement('div');
+  el.className = 'angle-tag';
+  el.hidden = true;
+  labelsRoot.appendChild(el);
+  return el;
+});
+
 function paintLabels(
   angles: { deg: number; x: number; y: number }[],
   visible: boolean,
 ): void {
-  labelsRoot.innerHTML = '';
-  if (!visible) return;
   const hideNumbers = chipGuess.classList.contains('active') && !revealed;
-  for (const a of angles) {
-    const el = document.createElement('div');
-    el.className = 'angle-tag';
+  for (let i = 0; i < labelPool.length; i++) {
+    const el = labelPool[i];
+    const a = visible ? angles[i] : undefined;
+    if (!a) {
+      el.hidden = true;
+      continue;
+    }
+    el.hidden = false;
     el.style.left = `${a.x}px`;
     el.style.top = `${a.y}px`;
     el.textContent = hideNumbers ? '?' : `${a.deg.toFixed(0)}°`;
-    labelsRoot.appendChild(el);
   }
 }
 
@@ -398,7 +455,7 @@ function frame(): void {
   let meshDriving = false;
 
   if (inputMode === 'demo') {
-    if (motionCapture) driveMotionCapture(performance.now());
+    if (motionCapture || introAttracting) driveMotionCapture(performance.now());
     const d = demo.toLandmarks();
     left = d.left;
     right = d.right;
@@ -458,6 +515,8 @@ function frame(): void {
 
   if (cameraStarting) {
     setBrandState('loading');
+  } else if (inputMode === 'demo' && introStage) {
+    setBrandState('intro');
   } else if (angles.length > 0 && meshDriving) {
     setBrandState('active');
   } else {
@@ -489,20 +548,23 @@ window.addEventListener('resize', () => {
 
 scene.setShadeMode('hybrid');
 scene.setShowWire(true);
+setChip(chipAngles, showAngles);
 chipShade.textContent = SHADE_LABEL.hybrid;
 setHudExpanded(defaultHudExpanded);
 setInputMode('demo');
 if (motionCapture) {
-  showAngles = true;
-  setChip(chipAngles, true);
+  introStage = false;
+  introAttracting = false;
+  showAngles = false;
+  setChip(chipAngles, false);
   setStatus('hold light', 'hold light');
   setBrandState('active');
 } else if (!skipAutoCamera) {
-  setStatus('Loading hand model…', 'Loading…');
-  setBrandState('loading');
-  void enableCamera();
+  setStatus(START_STATUS_FULL, START_STATUS_SHORT);
+  setBrandState('intro');
 } else {
-  setBrandState('idle');
+  setStatus(START_STATUS_FULL, START_STATUS_SHORT);
+  setBrandState('intro');
 }
 scene.resize();
 requestAnimationFrame(frame);

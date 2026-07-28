@@ -153,8 +153,14 @@ function oneHandPinch(hand: Landmark[]): AnchorPair | null {
 export function resolveAnchors(hands: Landmark[][]): AnchorPair | null {
   const live = hands.filter((h) => h && h.length >= 2);
   if (live.length >= 2) {
-    const a = live[0];
-    const b = live[1];
+    // Stable left/right by image-space x (wrist), not MediaPipe detection order.
+    const sorted = [...live].sort((ha, hb) => {
+      const xa = ha[0]?.x ?? 0.5;
+      const xb = hb[0]?.x ?? 0.5;
+      return xa - xb;
+    });
+    const a = sorted[0];
+    const b = sorted[1];
     const ta = countTips(a);
     const tb = countTips(b);
     if (
