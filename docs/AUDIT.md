@@ -55,7 +55,7 @@ HoloPinch 的问题不再是“能否做出手势驱动的全息体”——这�
 | `span` / `flatness` 首屏遥测 | 已修 | `src/main.ts:33-34,467-478`：仅 `?debug=1` |
 | Segoe / 无品牌字体 | 已修 | `index.html:16-21`、`src/style.css:20,339-346` |
 | 无 robots/sitemap/JSON-LD/About | 已修 | `public/robots.txt`、`public/sitemap.xml`、`index.html:42-65,78-111` |
-| MediaPipe 在首包 | 已修 | `src/main.ts:195-202` 动态 import；build 输出独立 `hands-*.js` 40.55 KB gzip |
+| MediaPipe 在首包 | **Worker 外置** | MediaPipe 在 `hands.worker-*.js`；主包不再 lazy `hands` chunk（避免 Origin cache poison） |
 | WebGL 失败白屏 | 已修 | `src/main.ts:56-78` |
 | OG 缺产品画面 | **仍成立** | `index.html:30,40` 指向 logo-only `public/og.png` |
 | 首屏有仪表盘味 | **本轮已降** | 默认 `showAngles = false`；角度改 opt-in |
