@@ -1,14 +1,14 @@
 <!doctype html>
-<html lang="en">
+<html lang="zh">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
-    <title>HoloPinch — Hold a hologram between your hands</title>
+    <title>HoloPinch — 双手之间的全息光影</title>
     <meta
       name="description"
-      content="Browser AR toy: pinch with your hands and a living holographic mesh appears between them. MediaPipe + WebGL. No app install."
+      content="浏览器 AR 玩具：捏合手指，双手之间出现可交互的全息网格。MediaPipe + WebGL，无需安装 App。"
     />
-    <link rel="canonical" href="https://holopinch.lizliz.xyz/" />
+    <link rel="canonical" href="https://holopinch.lizliz.xyz/zh/" />
     <link rel="alternate" hreflang="en" href="https://holopinch.lizliz.xyz/" />
     <link rel="alternate" hreflang="zh" href="https://holopinch.lizliz.xyz/zh/" />
     <link rel="alternate" hreflang="x-default" href="https://holopinch.lizliz.xyz/" />
@@ -29,30 +29,30 @@
     <script src="https://code.iconify.design/3/3.1.1/iconify.min.js" defer></script>
 
     <meta property="og:type" content="website" />
-    <meta property="og:url" content="https://holopinch.lizliz.xyz/" />
-    <meta property="og:title" content="HoloPinch — Hold a hologram between your hands" />
+    <meta property="og:url" content="https://holopinch.lizliz.xyz/zh/" />
+    <meta property="og:title" content="HoloPinch — 双手之间的全息光影" />
     <meta
       property="og:description"
-      content="Browser AR toy: pinch with your hands and a living holographic mesh appears between them. MediaPipe + WebGL. No app install."
+      content="浏览器 AR 玩具：捏合手指，双手之间出现可交互的全息网格。MediaPipe + WebGL，无需安装 App。"
     />
-    <meta property="og:image" content="https://holopinch.lizliz.xyz/og.png" />
+    <meta property="og:image" content="https://holopinch.lizliz.xyz/og-zh.png" />
     <meta property="og:image:width" content="1200" />
     <meta property="og:image:height" content="630" />
 
     <meta name="twitter:card" content="summary_large_image" />
-    <meta name="twitter:title" content="HoloPinch — Hold a hologram between your hands" />
+    <meta name="twitter:title" content="HoloPinch — 双手之间的全息光影" />
     <meta
       name="twitter:description"
-      content="Browser AR toy: pinch with your hands and a living holographic mesh appears between them. MediaPipe + WebGL. No app install."
+      content="浏览器 AR 玩具：捏合手指，双手之间出现可交互的全息网格。MediaPipe + WebGL，无需安装 App。"
     />
-    <meta name="twitter:image" content="https://holopinch.lizliz.xyz/og.png" />
+    <meta name="twitter:image" content="https://holopinch.lizliz.xyz/og-zh.png" />
 
     <script type="application/ld+json">
       {
         "@context": "https://schema.org",
         "@type": "WebApplication",
         "name": "HoloPinch",
-        "url": "https://holopinch.lizliz.xyz/",
+        "url": "https://holopinch.lizliz.xyz/zh/",
         "applicationCategory": "GameApplication",
         "operatingSystem": "Any (browser)",
         "browserRequirements": "Requires a browser with camera access and WebGL",
@@ -79,7 +79,7 @@
 
       <header id="topbar" data-brand="loading">
         <h1 class="brand">HoloPinch</h1>
-        <p class="tagline" data-i18n="tagline">Hold light between your hands. No app. Just a browser.</p>
+        <p class="tagline" data-i18n="tagline">双手之间，光即成物。无需 App，浏览器直达。</p>
       </header>
 
       <div id="about-backdrop" class="hidden" style="display:none" aria-hidden="true"></div>
@@ -91,34 +91,30 @@
         aria-modal="true"
         aria-labelledby="about-title"
       >
-        <button type="button" id="about-close" class="about-close" data-i18n-aria="btnAboutClose" aria-label="Close about">
+        <button type="button" id="about-close" class="about-close" data-i18n-aria="btnAboutClose" aria-label="关闭关于">
           ×
         </button>
         <h2 id="about-title">HoloPinch</h2>
 
-        <h3 data-i18n="aboutWhatH">What</h3>
+        <h3 data-i18n="aboutWhatH">是什么</h3>
         <p data-i18n="aboutWhat">
-          Hold light between your fingers. A live hologram mesh — camera in the browser. No app, no
-          account, no backend.
+          把光握在指尖之间。实时全息网格 —— 摄像头在浏览器内运行。无需 App，无需注册，无后端。
         </p>
 
-        <h3 data-i18n="aboutPlayH">Play</h3>
+        <h3 data-i18n="aboutPlayH">怎么玩</h3>
         <p data-i18n="aboutPlay">
-          The camera wakes on its own — pinch or spread one or both hands. Closer + flat → foil
-          card. Farther + open → crystal bar. Best with two hands. No camera, or denied? The demo
-          orbs on stage already respond; open controls for more.
+          摄像头自动唤醒 —— 捏合或张开单手或双手。近 + 平 → 箔卡片。远 + 开 → 水晶柱。双手效果最佳。没有摄像头或被拒绝？舞台上的演示球已经响应；打开控制面板可探索更多。
         </p>
 
-        <h3 data-i18n="aboutAnglesH">Angles</h3>
+        <h3 data-i18n="aboutAnglesH">角度</h3>
         <p data-i18n="aboutAngles">
-          Angles stay off by default so the light stays primary. Open controls → Angles / Guess when
-          you want the STEM layer.
+          角度默认关闭，让光保持主角地位。想看 STEM 图层时，打开控制面板 → Angles / Guess。
         </p>
 
-        <h3 data-i18n="aboutTechH">Tech</h3>
+        <h3 data-i18n="aboutTechH">技术</h3>
         <p data-i18n="aboutTech">
-          MediaPipe HandLandmarker + WebGL + three.js. One
-          <code>flatness</code> value drives opacity, edges, and foil.
+          MediaPipe HandLandmarker + WebGL + three.js。一个
+          <code>flatness</code> 值驱动透明度、边缘和箔面效果。
         </p>
 
         <p class="about-attr">
@@ -140,9 +136,9 @@
             type="button"
             id="btn-cam-quick"
             data-i18n-title="btnCamQuickTitle"
-            title="Start camera"
+            title="启动摄像头"
           >
-            <span id="status" aria-live="polite">Start camera</span>
+            <span id="status" aria-live="polite">启动摄像头</span>
           </button>
           <button
             type="button"
@@ -151,8 +147,8 @@
             aria-controls="hud-panel"
             data-i18n-aria="hudToggleLabel"
             data-i18n-title="hudToggleTitle"
-            aria-label="Open controls"
-            title="Controls"
+            aria-label="打开控制面板"
+            title="控制面板"
           >
             <span class="hud-chevron" aria-hidden="true"></span>
           </button>
@@ -162,7 +158,7 @@
             aria-expanded="false"
             aria-controls="about-panel"
             data-i18n-title="btnAboutTitle"
-            title="About"
+            title="关于"
           >
             ?
           </button>
@@ -170,35 +166,35 @@
             type="button"
             id="btn-lang"
             data-i18n-title="btnLangTitle"
-            title="中文"
+            title="English"
             aria-label="Switch language"
           >
             <span class="iconify" data-icon="lucide:translate" aria-hidden="true"></span>
           </button>
-          <button type="button" id="btn-cam-compact" class="hud-stop hidden" data-i18n="btnCamCompactStop" data-i18n-title="btnCamCompactTitle" title="Stop camera">
-            Stop
+          <button type="button" id="btn-cam-compact" class="hud-stop hidden" data-i18n="btnCamCompactStop" data-i18n-title="btnCamCompactTitle" title="停止摄像头">
+            停止
           </button>
         </div>
 
         <div id="hud-panel" hidden>
           <div id="angles-readout"></div>
 
-          <button id="btn-cam" type="button" class="primary" data-i18n="btnCamPrimary">Camera</button>
+          <button id="btn-cam" type="button" class="primary" data-i18n="btnCamPrimary">摄像头</button>
 
           <div class="chips" role="toolbar" aria-label="Modes">
-            <button id="btn-demo" type="button" class="chip active" aria-pressed="true" data-i18n="chipDemo">Demo</button>
-            <button id="chip-angles" type="button" class="chip" aria-pressed="false" data-i18n="chipAngles">Angles</button>
-            <button id="chip-edges" type="button" class="chip active" aria-pressed="true" data-i18n="chipEdges">Edges</button>
-            <button id="chip-guess" type="button" class="chip" aria-pressed="false" data-i18n="chipGuess">Guess</button>
-            <button id="chip-shade" type="button" class="chip" aria-pressed="false" data-i18n="chipShade" data-i18n-title="chipShadeTitle" title="Cycle shade: hybrid → holo → normal">Shade</button>
+            <button id="btn-demo" type="button" class="chip active" aria-pressed="true" data-i18n="chipDemo">演示</button>
+            <button id="chip-angles" type="button" class="chip" aria-pressed="false" data-i18n="chipAngles">角度</button>
+            <button id="chip-edges" type="button" class="chip active" aria-pressed="true" data-i18n="chipEdges">线框</button>
+            <button id="chip-guess" type="button" class="chip" aria-pressed="false" data-i18n="chipGuess">猜角度</button>
+            <button id="chip-shade" type="button" class="chip" aria-pressed="false" data-i18n="chipShade" data-i18n-title="chipShadeTitle" title="循环着色模式：混合 → 全息 → 普通">着色</button>
           </div>
 
           <div id="guess-panel" class="hidden">
             <label>
-              <span data-i18n="guessLabel">Guess angle (°)</span>
+              <span data-i18n="guessLabel">猜角度 (°)</span>
               <input id="guess-input" type="number" min="0" max="180" step="1" data-i18n-placeholder="guessPlaceholder" placeholder="°" inputmode="numeric" />
             </label>
-            <button id="btn-reveal" type="button" data-i18n="btnReveal">Reveal</button>
+            <button id="btn-reveal" type="button" data-i18n="btnReveal">揭晓</button>
             <div id="guess-result"></div>
           </div>
         </div>

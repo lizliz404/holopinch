@@ -2,7 +2,11 @@ import './style.css';
 import { resolveAnchors, type AnchorPair } from './anchors';
 import { DemoHands } from './demo';
 import { HandTracker } from './hands';
+import { applyDom, lang, t } from './i18n';
 import { PrismScene, type ShadeMode } from './scene';
+
+// Apply i18n to static DOM before any interaction
+applyDom();
 
 const app = document.querySelector<HTMLDivElement>('#app')!;
 const video = document.querySelector<HTMLVideoElement>('#video')!;
@@ -44,11 +48,11 @@ const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)
 /** Island stays collapsed by default everywhere — expand is opt-in (Dynamic Island scale). */
 const defaultHudExpanded = false;
 const DEMO_STATUS_FULL = isCoarsePointer
-  ? 'Demo — drag orbs · two-finger vertical = open · horizontal = spread'
-  : 'Demo — drag orbs · scroll = open · Shift+scroll = spread';
-const DEMO_STATUS_SHORT = 'Demo';
-const START_STATUS_FULL = 'Drag the light — camera wakes on its own';
-const START_STATUS_SHORT = 'Camera…';
+  ? t('demoFull')
+  : t('demoFullDesktop');
+const DEMO_STATUS_SHORT = t('demoShort');
+const START_STATUS_FULL = t('startFull');
+const START_STATUS_SHORT = t('startShort');
 /** Keep in emitted JS so Cloudflare custom-domain asset URLs rotate after cache poison. */
 const BUILD_ID = 'module-wasm-loader-2026-07-28c';
 if (typeof document !== 'undefined') {
@@ -66,8 +70,7 @@ if (cleanCapture) {
 function showWebGlFallback(): void {
   const msg = document.createElement('div');
   msg.id = 'webgl-fallback';
-  msg.innerHTML =
-    '<p><strong>WebGL is unavailable</strong> in this browser — HoloPinch needs it to render the hologram. Try a current Chrome/Safari.</p>';
+  msg.innerHTML = `<p>${t('webglFallback')}</p>`;
   app.appendChild(msg);
   canvas.style.display = 'none';
   hud.style.display = 'none';
@@ -95,9 +98,9 @@ type InputMode = 'demo' | 'camera';
 type BrandState = 'intro' | 'loading' | 'idle' | 'active';
 const SHADE_CYCLE: ShadeMode[] = ['hybrid', 'holo', 'normal'];
 const SHADE_LABEL: Record<ShadeMode, string> = {
-  hybrid: 'Shade · hybrid',
-  holo: 'Shade · holo',
-  normal: 'Shade · normal',
+  hybrid: t('shadeHybrid'),
+  holo: t('shadeHolo'),
+  normal: t('shadeNormal'),
 };
 
 let inputMode: InputMode = 'demo';
@@ -120,8 +123,8 @@ let brandState: BrandState = 'loading';
 let introStage = !motionCapture;
 let introAttracting = !motionCapture && !prefersReducedMotion;
 /** Full status for expanded island; short label for collapsed pill. */
-let statusFull = 'Loading…';
-let statusShort = 'Loading…';
+let statusFull = t('loadingGeneric');
+let statusShort = t('shortLoading');
 
 function setBrandState(next: BrandState): void {
   if (brandState === next) return;
@@ -140,25 +143,31 @@ function setStatus(full: string, short?: string): void {
   paintStatus();
 }
 
+/** Map full status strings → short labels for the collapsed pill. */
+const SHORT_LABEL: [string, string][] = [
+  [t('loadingWasm'), t('shortWasm')],
+  [t('loadingModel'), t('shortModel')],
+  [t('loadingInit'), t('shortLoading')],
+  [t('loadingGeneric'), t('shortLoading')],
+  [t('requestingCamera'), t('shortCamera')],
+  [t('statusShowHand'), t('shortShowHand')],
+  [t('statusSpread'), t('shortSpread')],
+  [t('statusTracking'), t('shortTracking')],
+  [t('statusShareHint'), t('shortSnapIt')],
+  [t('statusFading'), t('shortFading')],
+  [t('statusHolding'), t('shortHolding')],
+  [t('statusModelFail'), t('shortModelFail')],
+  [t('statusCamBlocked'), t('shortBlocked')],
+  [t('statusNoCam'), t('shortNoCam')],
+  [t('statusCamBusy'), t('shortCamBusy')],
+  [t('statusCamFail'), t('shortCamFail')],
+  [DEMO_STATUS_FULL, DEMO_STATUS_SHORT],
+  [t('demoFullDesktop'), DEMO_STATUS_SHORT],
+];
+
 function shortenStatus(full: string): string {
-  const map: [RegExp, string][] = [
-    [/loading hand model.*wasm/i, 'WASM…'],
-    [/loading hand model.*model/i, 'Model…'],
-    [/loading hand model/i, 'Loading…'],
-    [/requesting camera/i, 'Camera…'],
-    [/show your hand/i, 'Show hand'],
-    [/spread fingers/i, 'Spread…'],
-    [/tracking/i, 'Tracking'],
-    [/screenshot/i, 'Snap it'],
-    [/hands lost.*fading/i, 'Fading…'],
-    [/hands lost.*holding/i, 'Holding…'],
-    [/hand model failed/i, 'Model fail'],
-    [/camera blocked/i, 'Blocked'],
-    [/camera failed/i, 'Cam fail'],
-    [/^demo/i, DEMO_STATUS_SHORT],
-  ];
-  for (const [re, label] of map) {
-    if (re.test(full)) return label;
+  for (const [long, short] of SHORT_LABEL) {
+    if (full === long) return short;
   }
   return full.length > 14 ? `${full.slice(0, 12)}…` : full;
 }
@@ -203,9 +212,9 @@ function setAboutOpen(open: boolean): void {
 function syncCamButtons(): void {
   const live = inputMode === 'camera';
   btnCam.classList.toggle('active', live);
-  btnCam.textContent = live ? 'Stop camera' : 'Retry camera';
+  btnCam.textContent = live ? t('btnStopCam') : t('btnRetryCam');
   btnCamQuick.disabled = cameraStarting;
-  btnCamQuick.setAttribute('aria-label', live ? 'Stop camera' : 'Camera');
+  btnCamQuick.setAttribute('aria-label', live ? t('ariaStopCam') : t('ariaStartCam'));
   btnCamCompact.classList.toggle('hidden', !live);
   btnCamCompact.disabled = cameraStarting;
 }
@@ -248,13 +257,13 @@ function setCameraPermissionStatus(err: unknown): void {
   const busy = name === 'NotReadableError' || /NotReadable|track|in use/i.test(String(err));
   setStatus(
     denied
-      ? 'Camera blocked — allow permission, or drag Demo orbs'
+      ? t('statusCamBlocked')
       : missing
-        ? 'No camera found — drag Demo orbs instead'
+        ? t('statusNoCam')
         : busy
-          ? 'Camera in use elsewhere — close other apps, or use Demo'
-          : 'Camera failed — drag Demo orbs; use controls to retry',
-    denied ? 'Blocked' : missing ? 'No cam' : busy ? 'Cam busy' : 'Cam fail',
+          ? t('statusCamBusy')
+          : t('statusCamFail'),
+    denied ? t('shortBlocked') : missing ? t('shortNoCam') : busy ? t('shortCamBusy') : t('shortCamFail'),
   );
 }
 
@@ -275,12 +284,12 @@ async function enableCamera(): Promise<void> {
     const paintProgress = () => {
       if (!modelDone) {
         const stage = tracker?.initProgress;
-        if (stage === 'wasm') setStatus('Loading hand model (WASM)…', 'WASM…');
-        else if (stage === 'model') setStatus('Loading hand model (model)…', 'Model…');
-        else if (stage === 'init') setStatus('Loading hand model…', 'Init…');
-        else setStatus('Loading hand model…', 'Loading…');
+        if (stage === 'wasm') setStatus(t('loadingWasm'), t('shortWasm'));
+        else if (stage === 'model') setStatus(t('loadingModel'), t('shortModel'));
+        else if (stage === 'init') setStatus(t('loadingInit'), t('shortLoading'));
+        else setStatus(t('loadingGeneric'), t('shortLoading'));
       } else if (!camDone) {
-        setStatus('Requesting camera…', 'Camera…');
+        setStatus(t('requestingCamera'), t('shortCamera'));
       }
     };
     paintProgress();
@@ -322,13 +331,13 @@ async function enableCamera(): Promise<void> {
     }
 
     if (tResult.status === 'fulfilled' && sResult.status === 'fulfilled') {
-      const t = tResult.value;
+      const trackerInstance = tResult.value;
       const stream = sResult.value;
       acquired = stream;
-      await t.adoptStream(video, stream);
+      await trackerInstance.adoptStream(video, stream);
       keepStream = true;
       setInputMode('camera');
-      setStatus('Show your hand — pinch or spread fingers', 'Show hand');
+      setStatus(t('statusShowHand'), t('shortShowHand'));
       setBrandState('idle');
       return;
     }
@@ -360,10 +369,7 @@ async function enableCamera(): Promise<void> {
     setInputMode('demo');
     setBrandState('idle');
     introAttracting = false;
-    setStatus(
-      'Hand model failed — Demo still works; tap Retry camera',
-      'Model fail',
-    );
+    setStatus(t('statusModelFail'), t('shortModelFail'));
   } catch (err) {
     console.error(err);
     if (acquired && !keepStream) {
@@ -394,6 +400,12 @@ function disableCamera(): void {
   setBrandState('idle');
   setStatus(START_STATUS_FULL, START_STATUS_SHORT);
 }
+
+// Language switcher: navigate to the other locale URL (no client-side lang switch)
+const btnLang = document.querySelector<HTMLButtonElement>('#btn-lang')!;
+btnLang.addEventListener('click', () => {
+  location.href = lang() === 'zh' ? '/' : '/zh/';
+});
 
 btnCam.addEventListener('click', () => {
   if (inputMode === 'camera') disableCamera();
@@ -445,15 +457,19 @@ btnReveal.addEventListener('click', () => {
   revealed = true;
   const guess = Number(guessInput.value);
   if (!lastAngles.length) {
-    guessResult.textContent = 'No angle yet — show a hand first';
+    guessResult.textContent = t('guessNoAngle');
     return;
   }
   const truth = lastAngles[0];
   if (Number.isFinite(guess)) {
     const err = Math.abs(guess - truth);
-    guessResult.textContent = `True ${truth.toFixed(1)}° · you ${guess}° · err ${err.toFixed(1)}°`;
+    guessResult.textContent = lang() === 'zh'
+      ? `真实 ${truth.toFixed(1)}° · 你猜 ${guess}° · 误差 ${err.toFixed(1)}°`
+      : `True ${truth.toFixed(1)}° · you ${guess}° · err ${err.toFixed(1)}°`;
   } else {
-    guessResult.textContent = `True angle ${truth.toFixed(1)}°`;
+    guessResult.textContent = lang() === 'zh'
+      ? `真实角度 ${truth.toFixed(1)}°`
+      : `True angle ${truth.toFixed(1)}°`;
   }
 });
 
@@ -588,21 +604,21 @@ function frame(): void {
     if (meshLive && !shareHintShown) {
       shareHintShown = true;
       shareHintUntil = now + 6000;
-      setStatus('Screenshot it — tag #HoloPinch', 'Snap it');
+      setStatus(t('statusShareHint'), t('shortSnapIt'));
     } else if (now < shareHintUntil) {
       // keep share hint
     } else if (!resolved.held && !resolved.fading) {
       if (!lastHandsSeen || lastTipCount === 0) {
-        setStatus('Show your hand — pinch or spread fingers', 'Show hand');
+        setStatus(t('statusShowHand'), t('shortShowHand'));
       } else if (!anchor && lastHandsSeen >= 1) {
-        setStatus('Spread fingers in frame', 'Spread…');
+        setStatus(t('statusSpread'), t('shortSpread'));
       } else {
-        setStatus('Tracking — mesh follows your fingers', 'Tracking');
+        setStatus(t('statusTracking'), t('shortTracking'));
       }
     } else if (resolved.fading) {
-      setStatus('Hands lost — fading…', 'Fading…');
+      setStatus(t('statusFading'), t('shortFading'));
     } else if (resolved.held) {
-      setStatus('Hands lost — holding pose…', 'Holding…');
+      setStatus(t('statusHolding'), t('shortHolding'));
     }
   }
 
@@ -622,14 +638,14 @@ function frame(): void {
   if (angles.length) {
     const angText =
       chipGuess.classList.contains('active') && !revealed
-        ? 'Angles hidden — guess, then Reveal'
+        ? t('anglesHidden')
         : `∠ ${angles.map((a) => a.deg.toFixed(0) + '°').join(' · ')}`;
     anglesReadout.textContent = debugTelemetry
       ? `${angText}  ·  span ${span.toFixed(2)}  ·  flat ${flatness.toFixed(2)}`
       : angText;
   } else {
     anglesReadout.textContent =
-      inputMode === 'camera' ? 'Waiting for hand…' : '';
+      inputMode === 'camera' ? t('anglesWaiting') : '';
   }
 
   paintLabels(angles, showAngles && angles.length > 0);
@@ -653,7 +669,7 @@ if (motionCapture) {
   introAttracting = false;
   showAngles = false;
   setChip(chipAngles, false);
-  setStatus('hold light', 'hold light');
+  setStatus(t('motionHoldLight'), t('motionHoldLight'));
   setBrandState('active');
 } else if (!skipAutoCamera) {
   setStatus(START_STATUS_FULL, START_STATUS_SHORT);

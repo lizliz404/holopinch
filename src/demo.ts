@@ -1,4 +1,5 @@
 import type { Landmark } from './landmarks';
+import { t } from './i18n';
 
 export type DemoPinch = {
   left: { x: number; y: number };
@@ -52,7 +53,7 @@ export class DemoHands {
       const el = document.createElement('div');
       el.className = `demo-handle ${side === 'right' ? 'right' : ''}`;
       el.dataset.side = side;
-      el.title = side === 'left' ? 'Left hand' : 'Right hand';
+      el.title = side === 'left' ? t('demoLeftHand') : t('demoRightHand');
       this.root.appendChild(el);
       this.handles.push({ el, side });
 

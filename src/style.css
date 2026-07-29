@@ -301,6 +301,33 @@ body {
   background: rgba(125, 211, 192, 0.12);
 }
 
+/* Language switcher — same island citizen style as about */
+#btn-lang {
+  flex-shrink: 0;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border-radius: 999px;
+  line-height: 1;
+  color: var(--muted);
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid transparent;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+#btn-lang .iconify {
+  font-size: 15px;
+  width: 15px;
+  height: 15px;
+}
+
+#btn-lang:hover {
+  border-color: rgba(255, 255, 255, 0.2);
+  color: var(--text);
+}
+
 .hud-stop {
   flex-shrink: 0;
   padding: 0 10px;
