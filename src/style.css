@@ -14,8 +14,9 @@
   --island-blur: 16px;
   --island-radius-collapsed: 9999px;
   --island-radius-expanded: 18px;
-  /* Collapsed = Dynamic-Island scale; expanded grows for controls */
-  --island-collapsed-max: min(168px, calc(100vw - 56px));
+  /* Collapsed = Dynamic-Island scale; expanded grows for controls.
+     ~196px fits status + chevron + meta(?+中/EN) + optional Stop without crushing. */
+  --island-collapsed-max: min(196px, calc(100vw - 48px));
   --island-expanded-max: min(360px, calc(100vw - 20px));
   font-family: "Inter", "Noto Sans SC", "PingFang SC", "Microsoft YaHei", system-ui, sans-serif;
 }
@@ -197,6 +198,14 @@ body {
   min-height: 28px;
 }
 
+/* Meta actions (about + lang) sit as one cluster after the chevron */
+.hud-meta {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  flex-shrink: 0;
+}
+
 #btn-cam-quick {
   flex: 1;
   min-width: 0;
@@ -301,13 +310,17 @@ body {
   background: rgba(125, 211, 192, 0.12);
 }
 
-/* Language switcher — same island citizen style as about */
+/* Language switcher — target-locale text (中 / EN), not an ambiguous glyph */
 #btn-lang {
   flex-shrink: 0;
-  width: 28px;
+  box-sizing: border-box;
+  min-width: 28px;
   height: 28px;
-  padding: 0;
+  padding: 0 7px;
   border-radius: 999px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
   line-height: 1;
   color: var(--muted);
   background: rgba(255, 255, 255, 0.05);
@@ -315,12 +328,10 @@ body {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-}
-
-#btn-lang .iconify {
-  font-size: 15px;
-  width: 15px;
-  height: 15px;
+  text-decoration: none;
+  cursor: pointer;
+  -webkit-user-select: none;
+  user-select: none;
 }
 
 #btn-lang:hover {
@@ -379,6 +390,10 @@ body {
   min-height: 1.15em;
   text-align: center;
   font-size: 12px;
+}
+
+#angles-readout:empty {
+  display: none;
 }
 
 button {
@@ -703,7 +718,7 @@ html.capture-clean .demo-handle {
 /* Desktop: slightly roomier collapsed pill, still not a fat dock */
 @media (pointer: fine) and (min-width: 768px) {
   :root {
-    --island-collapsed-max: min(200px, calc(100vw - 48px));
+    --island-collapsed-max: min(220px, calc(100vw - 48px));
     --island-expanded-max: min(400px, calc(100vw - 24px));
   }
 
@@ -716,10 +731,17 @@ html.capture-clean .demo-handle {
   }
 
   #btn-about,
+  #btn-lang,
   #hud-toggle,
   .hud-stop {
     width: 30px;
     height: 30px;
+  }
+
+  #btn-lang {
+    width: auto;
+    min-width: 30px;
+    padding: 0 8px;
   }
 
   .hud-stop {

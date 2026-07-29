@@ -401,12 +401,6 @@ function disableCamera(): void {
   setStatus(START_STATUS_FULL, START_STATUS_SHORT);
 }
 
-// Language switcher: navigate to the other locale URL (no client-side lang switch)
-const btnLang = document.querySelector<HTMLButtonElement>('#btn-lang')!;
-btnLang.addEventListener('click', () => {
-  location.href = lang() === 'zh' ? '/' : '/zh/';
-});
-
 btnCam.addEventListener('click', () => {
   if (inputMode === 'camera') disableCamera();
   else void enableCamera();

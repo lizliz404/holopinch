@@ -26,8 +26,6 @@
       href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=Inter:wght@400;600;800&display=swap"
       rel="stylesheet"
     />
-    <script src="https://code.iconify.design/3/3.1.1/iconify.min.js" defer></script>
-
     <meta property="og:type" content="website" />
     <meta property="og:url" content="https://holopinch.lizliz.xyz/" />
     <meta property="og:title" content="HoloPinch — Hold a hologram between your hands" />
@@ -156,25 +154,28 @@
           >
             <span class="hud-chevron" aria-hidden="true"></span>
           </button>
-          <button
-            type="button"
-            id="btn-about"
-            aria-expanded="false"
-            aria-controls="about-panel"
-            data-i18n-title="btnAboutTitle"
-            title="About"
-          >
-            ?
-          </button>
-          <button
-            type="button"
-            id="btn-lang"
-            data-i18n-title="btnLangTitle"
-            title="中文"
-            aria-label="Switch language"
-          >
-            <span class="iconify" data-icon="lucide:translate" aria-hidden="true"></span>
-          </button>
+          <div class="hud-meta" role="group">
+            <button
+              type="button"
+              id="btn-about"
+              aria-expanded="false"
+              aria-controls="about-panel"
+              data-i18n-title="btnAboutTitle"
+              title="About"
+            >
+              ?
+            </button>
+            <a
+              id="btn-lang"
+              href="/zh/"
+              hreflang="zh"
+              data-i18n="btnLangLabel"
+              data-i18n-title="btnLangTitle"
+              data-i18n-aria="btnLangAria"
+              title="中文"
+              aria-label="Switch to Chinese"
+            >中</a>
+          </div>
           <button type="button" id="btn-cam-compact" class="hud-stop hidden" data-i18n="btnCamCompactStop" data-i18n-title="btnCamCompactTitle" title="Stop camera">
             Stop
           </button>
@@ -185,7 +186,7 @@
 
           <button id="btn-cam" type="button" class="primary" data-i18n="btnCamPrimary">Camera</button>
 
-          <div class="chips" role="toolbar" aria-label="Modes">
+          <div class="chips" role="toolbar" data-i18n-aria="chipsModes" aria-label="Modes">
             <button id="btn-demo" type="button" class="chip active" aria-pressed="true" data-i18n="chipDemo">Demo</button>
             <button id="chip-angles" type="button" class="chip" aria-pressed="false" data-i18n="chipAngles">Angles</button>
             <button id="chip-edges" type="button" class="chip active" aria-pressed="true" data-i18n="chipEdges">Edges</button>

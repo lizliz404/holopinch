@@ -26,8 +26,6 @@
       href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=Inter:wght@400;600;800&display=swap"
       rel="stylesheet"
     />
-    <script src="https://code.iconify.design/3/3.1.1/iconify.min.js" defer></script>
-
     <meta property="og:type" content="website" />
     <meta property="og:url" content="https://holopinch.lizliz.xyz/zh/" />
     <meta property="og:title" content="HoloPinch — 双手之间的全息光影" />
@@ -152,25 +150,28 @@
           >
             <span class="hud-chevron" aria-hidden="true"></span>
           </button>
-          <button
-            type="button"
-            id="btn-about"
-            aria-expanded="false"
-            aria-controls="about-panel"
-            data-i18n-title="btnAboutTitle"
-            title="关于"
-          >
-            ?
-          </button>
-          <button
-            type="button"
-            id="btn-lang"
-            data-i18n-title="btnLangTitle"
-            title="English"
-            aria-label="Switch language"
-          >
-            <span class="iconify" data-icon="lucide:translate" aria-hidden="true"></span>
-          </button>
+          <div class="hud-meta" role="group">
+            <button
+              type="button"
+              id="btn-about"
+              aria-expanded="false"
+              aria-controls="about-panel"
+              data-i18n-title="btnAboutTitle"
+              title="关于"
+            >
+              ?
+            </button>
+            <a
+              id="btn-lang"
+              href="/"
+              hreflang="en"
+              data-i18n="btnLangLabel"
+              data-i18n-title="btnLangTitle"
+              data-i18n-aria="btnLangAria"
+              title="English"
+              aria-label="切换到英文"
+            >EN</a>
+          </div>
           <button type="button" id="btn-cam-compact" class="hud-stop hidden" data-i18n="btnCamCompactStop" data-i18n-title="btnCamCompactTitle" title="停止摄像头">
             停止
           </button>
@@ -181,7 +182,7 @@
 
           <button id="btn-cam" type="button" class="primary" data-i18n="btnCamPrimary">摄像头</button>
 
-          <div class="chips" role="toolbar" aria-label="Modes">
+          <div class="chips" role="toolbar" data-i18n-aria="chipsModes" aria-label="模式">
             <button id="btn-demo" type="button" class="chip active" aria-pressed="true" data-i18n="chipDemo">演示</button>
             <button id="chip-angles" type="button" class="chip" aria-pressed="false" data-i18n="chipAngles">角度</button>
             <button id="chip-edges" type="button" class="chip active" aria-pressed="true" data-i18n="chipEdges">线框</button>

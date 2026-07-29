@@ -41,7 +41,10 @@ const en = {
   guessLabel: 'Guess angle (°)',
   btnReveal: 'Reveal',
   guessPlaceholder: '°',
+  btnLangLabel: '中',
   btnLangTitle: '中文',
+  btnLangAria: 'Switch to Chinese',
+  chipsModes: 'Modes',
   webglFallback: '<strong>WebGL is unavailable</strong> in this browser — HoloPinch needs it to render the hologram. Try a current Chrome/Safari.',
 
   // ── TS dynamic ──
@@ -124,7 +127,10 @@ const zh: Record<keyof typeof en, string> = {
   guessLabel: '猜角度 (°)',
   btnReveal: '揭晓',
   guessPlaceholder: '°',
+  btnLangLabel: 'EN',
   btnLangTitle: 'English',
+  btnLangAria: '切换到英文',
+  chipsModes: '模式',
   webglFallback: '<strong>WebGL 不可用</strong> —— HoloPinch 需要 WebGL 来渲染全息效果。请使用较新的 Chrome/Safari。',
   demoFull: '演示 —— 拖动光球 · 双指垂直 = 开合 · 水平 = 张合',
   demoFullDesktop: '演示 —— 拖动光球 · 滚轮 = 开合 · Shift+滚轮 = 张合',
