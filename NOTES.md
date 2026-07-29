@@ -26,3 +26,8 @@ Camera: MediaPipe Hands via `@mediapipe/tasks-vision` (needs HTTPS or localhost 
 ## Kill / next
 - Kill if real-hand latency or landmark jitter ruins the "silk" feel on device.
 - Next product fork worth testing: gesture protractor mini-game (guess → reveal), not more geometry modes.
+
+## i18n (2026-07-29)
+- en/zh via `src/i18n.ts` dictionary + `data-i18n` HTML attributes
+- Lang switcher = Iconify `lucide:translate` button in HUD bar → navigates `/` ↔ `/zh/`
+- zh version: `zh/index.html`, `og:image` → `/og-zh.png` (TODO: generate from og.png with Chinese copy)
