@@ -2,7 +2,7 @@ import './style.css';
 import { resolveAnchors, type AnchorPair } from './anchors';
 import { DemoHands } from './demo';
 import { HandTracker } from './hands';
-import { applyDom, lang, t } from './i18n';
+import { applyDom, lang, setLang, t } from './i18n';
 import { PrismScene, type ShadeMode } from './scene';
 
 // Apply i18n to static DOM before any interaction
@@ -47,12 +47,46 @@ const isCoarsePointer = window.matchMedia('(pointer: coarse)').matches;
 const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 /** Island stays collapsed by default everywhere — expand is opt-in (Dynamic Island scale). */
 const defaultHudExpanded = false;
-const DEMO_STATUS_FULL = isCoarsePointer
-  ? t('demoFull')
-  : t('demoFullDesktop');
-const DEMO_STATUS_SHORT = t('demoShort');
-const START_STATUS_FULL = t('startFull');
-const START_STATUS_SHORT = t('startShort');
+
+/* ── i18n-dependent constants: re-initialized by initDynamicStrings() ── */
+let DEMO_STATUS_FULL: string;
+let DEMO_STATUS_SHORT: string;
+let START_STATUS_FULL: string;
+let START_STATUS_SHORT: string;
+let SHADE_LABEL: Record<ShadeMode, string>;
+let SHORT_LABEL: [string, string][];
+
+function initDynamicStrings(): void {
+  DEMO_STATUS_FULL = isCoarsePointer ? t('demoFull') : t('demoFullDesktop');
+  DEMO_STATUS_SHORT = t('demoShort');
+  START_STATUS_FULL = t('startFull');
+  START_STATUS_SHORT = t('startShort');
+  SHADE_LABEL = {
+    hybrid: t('shadeHybrid'),
+    holo: t('shadeHolo'),
+    normal: t('shadeNormal'),
+  };
+  SHORT_LABEL = [
+    [t('loadingWasm'), t('shortWasm')],
+    [t('loadingModel'), t('shortModel')],
+    [t('loadingInit'), t('shortLoading')],
+    [t('loadingGeneric'), t('shortLoading')],
+    [t('requestingCamera'), t('shortCamera')],
+    [t('statusShowHand'), t('shortShowHand')],
+    [t('statusSpread'), t('shortSpread')],
+    [t('statusTracking'), t('shortTracking')],
+    [t('statusShareHint'), t('shortSnapIt')],
+    [t('statusFading'), t('shortFading')],
+    [t('statusHolding'), t('shortHolding')],
+    [t('statusModelFail'), t('shortModelFail')],
+    [t('statusCamBlocked'), t('shortBlocked')],
+    [t('statusNoCam'), t('shortNoCam')],
+    [t('statusCamBusy'), t('shortCamBusy')],
+    [t('statusCamFail'), t('shortCamFail')],
+    [DEMO_STATUS_FULL, DEMO_STATUS_SHORT],
+    [t('demoFullDesktop'), DEMO_STATUS_SHORT],
+  ];
+}
 /** Keep in emitted JS so Cloudflare custom-domain asset URLs rotate after cache poison. */
 const BUILD_ID = 'module-wasm-loader-2026-07-28c';
 if (typeof document !== 'undefined') {
@@ -97,11 +131,6 @@ let tracker: HandTracker | null = null;
 type InputMode = 'demo' | 'camera';
 type BrandState = 'intro' | 'loading' | 'idle' | 'active';
 const SHADE_CYCLE: ShadeMode[] = ['hybrid', 'holo', 'normal'];
-const SHADE_LABEL: Record<ShadeMode, string> = {
-  hybrid: t('shadeHybrid'),
-  holo: t('shadeHolo'),
-  normal: t('shadeNormal'),
-};
 
 let inputMode: InputMode = 'demo';
 let lastAngles: number[] = [];
@@ -144,27 +173,6 @@ function setStatus(full: string, short?: string): void {
 }
 
 /** Map full status strings → short labels for the collapsed pill. */
-const SHORT_LABEL: [string, string][] = [
-  [t('loadingWasm'), t('shortWasm')],
-  [t('loadingModel'), t('shortModel')],
-  [t('loadingInit'), t('shortLoading')],
-  [t('loadingGeneric'), t('shortLoading')],
-  [t('requestingCamera'), t('shortCamera')],
-  [t('statusShowHand'), t('shortShowHand')],
-  [t('statusSpread'), t('shortSpread')],
-  [t('statusTracking'), t('shortTracking')],
-  [t('statusShareHint'), t('shortSnapIt')],
-  [t('statusFading'), t('shortFading')],
-  [t('statusHolding'), t('shortHolding')],
-  [t('statusModelFail'), t('shortModelFail')],
-  [t('statusCamBlocked'), t('shortBlocked')],
-  [t('statusNoCam'), t('shortNoCam')],
-  [t('statusCamBusy'), t('shortCamBusy')],
-  [t('statusCamFail'), t('shortCamFail')],
-  [DEMO_STATUS_FULL, DEMO_STATUS_SHORT],
-  [t('demoFullDesktop'), DEMO_STATUS_SHORT],
-];
-
 function shortenStatus(full: string): string {
   for (const [long, short] of SHORT_LABEL) {
     if (full === long) return short;
@@ -400,6 +408,21 @@ function disableCamera(): void {
   setBrandState('idle');
   setStatus(START_STATUS_FULL, START_STATUS_SHORT);
 }
+
+// Language switcher: client-side swap, no page reload → no model re-fetch
+const btnLang = document.querySelector<HTMLButtonElement>('#btn-lang')!;
+btnLang.addEventListener('click', () => {
+  setLang(lang() === 'zh' ? 'en' : 'zh');
+  initDynamicStrings();
+  syncCamButtons();
+  chipShade.textContent = SHADE_LABEL[shadeMode];
+  // Re-paint current status in new locale
+  if (inputMode === 'demo') {
+    setStatus(DEMO_STATUS_FULL, DEMO_STATUS_SHORT);
+  } else {
+    setStatus(t('statusShowHand'), t('shortShowHand'));
+  }
+});
 
 btnCam.addEventListener('click', () => {
   if (inputMode === 'camera') disableCamera();
@@ -652,6 +675,7 @@ window.addEventListener('resize', () => {
   demo.syncHandles();
 });
 
+initDynamicStrings();
 scene.setShadeMode('hybrid');
 scene.setShowWire(true);
 setChip(chipAngles, showAngles);

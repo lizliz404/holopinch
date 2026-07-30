@@ -310,17 +310,13 @@ body {
   background: rgba(125, 211, 192, 0.12);
 }
 
-/* Language switcher — target-locale text (中 / EN), not an ambiguous glyph */
+/* Language switcher — Iconify translate glyph, island citizen style */
 #btn-lang {
   flex-shrink: 0;
-  box-sizing: border-box;
-  min-width: 28px;
+  width: 28px;
   height: 28px;
-  padding: 0 7px;
+  padding: 0;
   border-radius: 999px;
-  font-size: 11px;
-  font-weight: 700;
-  letter-spacing: 0.02em;
   line-height: 1;
   color: var(--muted);
   background: rgba(255, 255, 255, 0.05);
@@ -328,10 +324,13 @@ body {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  text-decoration: none;
   cursor: pointer;
-  -webkit-user-select: none;
-  user-select: none;
+}
+
+#btn-lang .iconify {
+  font-size: 15px;
+  width: 15px;
+  height: 15px;
 }
 
 #btn-lang:hover {

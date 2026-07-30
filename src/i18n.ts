@@ -1,13 +1,24 @@
 /**
- * Minimal two-locale i18n for HoloPinch.
- * - zh/ index.html ships lang="zh" → zh bundle is used.
- * - Root index.html ships lang="en" → en bundle is used.
- * - No runtime lang switch: button navigates to the other URL (SEO-safe).
+ * Two-locale i18n for HoloPinch with client-side switching.
+ * - Single HTML page; lang detected from URL prefix → localStorage → default en.
+ * - setLang() swaps all strings in-place, updates URL prefix via History API.
+ * - No page reload → no model re-fetch, no WASM re-download.
  */
 
 export type Lang = 'en' | 'zh';
 
-const current: Lang = document.documentElement.lang === 'zh' ? 'zh' : 'en';
+const STORAGE_KEY = 'holopinch-lang';
+
+function detectLang(): Lang {
+  if (location.pathname.startsWith('/zh')) return 'zh';
+  try {
+    const stored = localStorage.getItem(STORAGE_KEY);
+    if (stored === 'zh' || stored === 'en') return stored;
+  } catch { /* private mode */ }
+  return 'en';
+}
+
+let current: Lang = detectLang();
 
 export function lang(): Lang {
   return current;
@@ -44,7 +55,6 @@ const en = {
   btnLangLabel: '中',
   btnLangTitle: '中文',
   btnLangAria: 'Switch to Chinese',
-  chipsModes: 'Modes',
   webglFallback: '<strong>WebGL is unavailable</strong> in this browser — HoloPinch needs it to render the hologram. Try a current Chrome/Safari.',
 
   // ── TS dynamic ──
@@ -130,7 +140,6 @@ const zh: Record<keyof typeof en, string> = {
   btnLangLabel: 'EN',
   btnLangTitle: 'English',
   btnLangAria: '切换到英文',
-  chipsModes: '模式',
   webglFallback: '<strong>WebGL 不可用</strong> —— HoloPinch 需要 WebGL 来渲染全息效果。请使用较新的 Chrome/Safari。',
   demoFull: '演示 —— 拖动光球 · 双指垂直 = 开合 · 水平 = 张合',
   demoFullDesktop: '演示 —— 拖动光球 · 滚轮 = 开合 · Shift+滚轮 = 张合',
@@ -187,6 +196,19 @@ const dict: Record<Lang, Record<keyof typeof en, string>> = { en, zh };
 
 export function t(key: keyof typeof en): string {
   return dict[current][key];
+}
+
+/** Swap locale in-place: re-paint DOM, update URL + localStorage, re-init dynamic strings. */
+export function setLang(next: Lang): void {
+  if (next === current) return;
+  current = next;
+  document.documentElement.lang = next;
+  try { localStorage.setItem(STORAGE_KEY, next); } catch { /* ok */ }
+  const path = location.pathname;
+  const canonical = next === 'zh' ? (path.startsWith('/zh') ? path : '/zh' + path) : path.replace(/^\/zh/, '') || '/';
+  history.replaceState(null, '', canonical);
+  applyDom();
+  // Dynamic strings: main.ts re-reads t() via initDynamicStrings()
 }
 
 /** Apply data-i18n / data-i18n-title / data-i18n-aria / data-i18n-placeholder to DOM. */
