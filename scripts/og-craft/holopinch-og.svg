@@ -1,0 +1,145 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630" viewBox="0 0 1200 630">
+  <defs>
+    <radialGradient id="stage" cx="50%" cy="36%" r="64%">
+      <stop offset="0%" stop-color="#1a1a24"/>
+      <stop offset="58%" stop-color="#0e0e14"/>
+      <stop offset="100%" stop-color="#0a0a0c"/>
+    </radialGradient>
+    <linearGradient id="scrim" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#0a0a0c" stop-opacity="0"/>
+      <stop offset="42%" stop-color="#0a0a0c" stop-opacity="0"/>
+      <stop offset="100%" stop-color="#050506" stop-opacity="0.94"/>
+    </linearGradient>
+    <linearGradient id="facetA" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#e85aad"/>
+      <stop offset="45%" stop-color="#7b5cff"/>
+      <stop offset="100%" stop-color="#3ecfc0"/>
+    </linearGradient>
+    <linearGradient id="facetB" x1="1" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#b8f05a"/>
+      <stop offset="40%" stop-color="#5eead4"/>
+      <stop offset="100%" stop-color="#c084fc"/>
+    </linearGradient>
+    <linearGradient id="facetC" x1="0" y1="1" x2="1" y2="0">
+      <stop offset="0%" stop-color="#67e8f9"/>
+      <stop offset="50%" stop-color="#a78bfa"/>
+      <stop offset="100%" stop-color="#f472b6"/>
+    </linearGradient>
+    <linearGradient id="skin" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#d2b49a"/>
+      <stop offset="100%" stop-color="#8a6d58"/>
+    </linearGradient>
+    <filter id="softGlow" x="-20%" y="-40%" width="140%" height="180%">
+      <feGaussianBlur stdDeviation="9" result="b"/>
+      <feMerge>
+        <feMergeNode in="b"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+    <style type="text/css"><![CDATA[
+      .wm { font-family: 'Liberation Sans', 'DejaVu Sans', sans-serif; font-size: 54px; font-weight: 700; letter-spacing: -0.03em; fill: #e8e6e3; }
+      .hl { font-family: 'Liberation Sans', 'DejaVu Sans', sans-serif; font-size: 30px; font-weight: 500; fill: #e8e6e3; }
+      .sub { font-family: 'Liberation Sans', 'DejaVu Sans', sans-serif; font-size: 20px; fill: #9a958c; }
+      .url { font-family: 'Liberation Mono', 'DejaVu Sans Mono', monospace; font-size: 16px; letter-spacing: 0.06em; fill: #6e6a64; }
+    ]]></style>
+  </defs>
+
+  <rect width="1200" height="630" fill="url(#stage)"/>
+  <g opacity="0.03" stroke="#ffffff" stroke-width="1">
+    <line x1="0" y1="90" x2="1200" y2="90"/>
+    <line x1="0" y1="180" x2="1200" y2="180"/>
+    <line x1="0" y1="270" x2="1200" y2="270"/>
+    <line x1="0" y1="360" x2="1200" y2="360"/>
+  </g>
+
+  <!-- LEFT HAND: silhouette with clear thumb+index pinch -->
+  <g transform="translate(95,120)" opacity="0.95">
+    <!-- palm + wrist -->
+    <path fill="url(#skin)" d="M20 300 C10 250 18 200 55 165 C78 142 105 130 130 128
+      L145 200 C120 210 95 235 88 270 C82 300 55 320 20 300 Z"/>
+    <!-- middle (folded) -->
+    <path fill="#b8957a" d="M130 128 C148 100 158 95 168 108 C176 120 168 145 158 168
+      C148 188 138 195 130 188 Z"/>
+    <!-- ring (folded) -->
+    <path fill="#a9856c" d="M118 145 C128 118 136 112 146 122 C154 132 148 155 140 175
+      C132 192 122 198 116 188 Z"/>
+    <!-- pinky (folded) -->
+    <path fill="#9a7760" d="M102 168 C108 145 116 140 124 148 C130 156 126 172 120 188
+      C114 200 106 204 102 196 Z"/>
+    <!-- index extended to pinch -->
+    <path fill="#c9a888" d="M145 155 C175 120 225 105 265 118 C285 125 292 145 280 158
+      C265 175 225 185 195 188 C170 190 150 178 145 155 Z"/>
+    <!-- thumb opposing pinch -->
+    <path fill="#d4b496" d="M175 210 C210 185 255 175 295 190 C315 200 318 222 302 235
+      C280 252 235 255 200 245 C180 238 168 225 175 210 Z"/>
+    <!-- knuckle lines -->
+    <g fill="none" stroke="#5a4336" stroke-opacity="0.35" stroke-width="2" stroke-linecap="round">
+      <path d="M155 165 C175 155 195 152 215 155"/>
+      <path d="M185 220 C210 210 240 208 265 215"/>
+    </g>
+  </g>
+
+  <!-- RIGHT HAND mirror -->
+  <g transform="translate(1105,120) scale(-1,1)" opacity="0.95">
+    <path fill="url(#skin)" d="M20 300 C10 250 18 200 55 165 C78 142 105 130 130 128
+      L145 200 C120 210 95 235 88 270 C82 300 55 320 20 300 Z"/>
+    <path fill="#b8957a" d="M130 128 C148 100 158 95 168 108 C176 120 168 145 158 168
+      C148 188 138 195 130 188 Z"/>
+    <path fill="#a9856c" d="M118 145 C128 118 136 112 146 122 C154 132 148 155 140 175
+      C132 192 122 198 116 188 Z"/>
+    <path fill="#9a7760" d="M102 168 C108 145 116 140 124 148 C130 156 126 172 120 188
+      C114 200 106 204 102 196 Z"/>
+    <path fill="#c9a888" d="M145 155 C175 120 225 105 265 118 C285 125 292 145 280 158
+      C265 175 225 185 195 188 C170 190 150 178 145 155 Z"/>
+    <path fill="#d4b496" d="M175 210 C210 185 255 175 295 190 C315 200 318 222 302 235
+      C280 252 235 255 200 245 C180 238 168 225 175 210 Z"/>
+    <g fill="none" stroke="#5a4336" stroke-opacity="0.35" stroke-width="2" stroke-linecap="round">
+      <path d="M155 165 C175 155 195 152 215 155"/>
+      <path d="M185 220 C210 210 240 208 265 215"/>
+    </g>
+  </g>
+
+  <!-- Crystal-bar hologram -->
+  <g filter="url(#softGlow)">
+    <ellipse cx="600" cy="255" rx="210" ry="46" fill="#7dd3c0" opacity="0.11"/>
+    <ellipse cx="600" cy="255" rx="150" ry="32" fill="#e85aad" opacity="0.10"/>
+
+    <polygon points="375,220 825,208 845,248 395,262" fill="url(#facetA)" opacity="0.70"/>
+    <polygon points="395,262 845,248 825,305 375,318" fill="url(#facetB)" opacity="0.78"/>
+    <polygon points="375,318 825,305 805,335 395,346" fill="url(#facetC)" opacity="0.52"/>
+
+    <g stroke="#ffffff" stroke-opacity="0.88" stroke-width="1.7" fill="none">
+      <polygon points="375,220 825,208 845,248 395,262"/>
+      <polygon points="395,262 845,248 825,305 375,318"/>
+      <line x1="430" y1="225" x2="448" y2="328"/>
+      <line x1="505" y1="218" x2="522" y2="324"/>
+      <line x1="580" y1="214" x2="598" y2="322"/>
+      <line x1="655" y1="212" x2="672" y2="318"/>
+      <line x1="730" y1="210" x2="748" y2="314"/>
+      <line x1="790" y1="209" x2="808" y2="312"/>
+      <polyline points="385,240 815,228" stroke-opacity="0.42" stroke-width="1"/>
+      <polyline points="388,288 818,276" stroke-opacity="0.38" stroke-width="1"/>
+    </g>
+    <circle cx="375" cy="220" r="4" fill="#7dd3c0" opacity="0.95"/>
+    <circle cx="825" cy="305" r="3.5" fill="#7dd3c0" opacity="0.7"/>
+  </g>
+
+  <!-- MediaPipe landmark hints near pinch tips -->
+  <g fill="#7dd3c0" opacity="0.6">
+    <circle cx="360" cy="255" r="3.2"/>
+    <circle cx="345" cy="238" r="2.4"/>
+    <circle cx="840" cy="248" r="3.2"/>
+    <circle cx="855" cy="232" r="2.4"/>
+  </g>
+
+  <rect width="1200" height="630" fill="url(#scrim)"/>
+
+  <g transform="translate(72, 468)">
+    <rect x="0" y="14" width="16" height="16" transform="rotate(45 8 22)" fill="none" stroke="#7dd3c0" stroke-width="2" opacity="0.95"/>
+    <text x="34" y="36" class="wm">HoloPinch</text>
+    <text x="34" y="82" class="hl">Hold a hologram between your hands</text>
+    <text x="34" y="118" class="sub">No app. No filter pack. Just a browser.</text>
+    <text x="920" y="118" class="url" text-anchor="end">holopinch.lizliz.xyz</text>
+  </g>
+</svg>
