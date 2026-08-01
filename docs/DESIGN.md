@@ -16,22 +16,26 @@ related_audits:
 
 > **DESIGN.md quality audit** · 2026-08-02 · gold: beautiful-html-templates/soft-editorial
 > - **Genre:** B brand/distribution brief（含 motion-first 分发优先级）
-> - **Grade A (UI system):** 3.5/10 — token 为表格抽取、无 soft-editorial 级 YAML role 机器规格 / Signature Treatments / 组件 `{colors.x}` 语法
+> - **Grade A (UI system):** n/a in this file — implementation visual system lives in [`docs/DESIGN.system.md`](./DESIGN.system.md) (**A ≈ 8.5/10**)
 > - **Grade B (brand brief):** 9/10 — 身份、记忆点 hold light、P0 motion>OG>favicon、token 抽取、favicon/OG prompt 与验收齐全
 > - **Strengths:**
 >   - §0 分发优先级与 falsifiable acceptance 可执行
 >   - 正向人格（hold light）+ 结构性全息 moat，非纯 not-SaaS
->   - Design tokens 标注 extracted from live code
+>   - Design tokens 标注 extracted from live code（表格级；机器 YAML 见 system 文档）
 >   - Favicon/OG/Motion brief + ready prompts
-> - **Gaps vs gold pattern:** 无 implementation-grade YAML（typography roles 全量 size/weight/lh/ls、spacing/canvas、components.description）；无 Overview density + Key Characteristics 机器段；无 Signature Treatments / Responsive / CJK system / Iteration Guide；UI 组件为 app-shell 叙述非可编码组件库
-> - **Verdict:** keep-as-is（品牌/分发）· 若要 coding agent 做 landing/UI 则 split-into-two-docs
-> - **Next action:** 保持本文为 brand SSOT；需要 UI 实现时另写 `docs/DESIGN-system.md`（soft-editorial 骨架 + 从 `src/style.css` 回填）
+> - **Gaps vs gold pattern:** 本文不承担 Genre A；UI 实现勿只读本文 token 表
+> - **Verdict:** keep-as-is（品牌/分发 SSOT）· **split done** → `DESIGN.system.md`
+> - **Next action:** 改 CSS token 时同步 `DESIGN.system.md`；改分发策略时改本文
 
 # HoloPinch — Design Brief
 
 > Single source of truth for brand/visual identity + **distribution asset priority**.
 > Downstream image AI uses §§9–10 for favicon/OG. Motion is higher priority than both
 > (see §0 and `docs/AUDIT-audience-resonance-v2.md`). Not a product roadmap (`PRD.md`).
+>
+> **UI implementation / coding-agent visual system:** [`docs/DESIGN.system.md`](./DESIGN.system.md)
+> (YAML tokens, Signature Treatments, CJK, Iteration Guide). When CSS and this brief disagree
+> on measurements, prefer `src/style.css` + `DESIGN.system.md`.
 
 ---
 
