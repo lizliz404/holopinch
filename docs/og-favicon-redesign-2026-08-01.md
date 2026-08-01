@@ -39,3 +39,5 @@ python3 -c "from PIL import Image; im=Image.open('public/og.png'); print(im.size
 
 ## Deploy
 Git push to `main` only (CF Pages Git). No wrangler.
+
+**Commit:** `5db9c5b` on `main` (pushed).
