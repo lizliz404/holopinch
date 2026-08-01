@@ -14,6 +14,19 @@ related_audits:
   - docs/INCIDENT-asset-cache.md
 ---
 
+> **DESIGN.md quality audit** · 2026-08-02 · gold: beautiful-html-templates/soft-editorial
+> - **Genre:** B brand/distribution brief（含 motion-first 分发优先级）
+> - **Grade A (UI system):** 3.5/10 — token 为表格抽取、无 soft-editorial 级 YAML role 机器规格 / Signature Treatments / 组件 `{colors.x}` 语法
+> - **Grade B (brand brief):** 9/10 — 身份、记忆点 hold light、P0 motion>OG>favicon、token 抽取、favicon/OG prompt 与验收齐全
+> - **Strengths:**
+>   - §0 分发优先级与 falsifiable acceptance 可执行
+>   - 正向人格（hold light）+ 结构性全息 moat，非纯 not-SaaS
+>   - Design tokens 标注 extracted from live code
+>   - Favicon/OG/Motion brief + ready prompts
+> - **Gaps vs gold pattern:** 无 implementation-grade YAML（typography roles 全量 size/weight/lh/ls、spacing/canvas、components.description）；无 Overview density + Key Characteristics 机器段；无 Signature Treatments / Responsive / CJK system / Iteration Guide；UI 组件为 app-shell 叙述非可编码组件库
+> - **Verdict:** keep-as-is（品牌/分发）· 若要 coding agent 做 landing/UI 则 split-into-two-docs
+> - **Next action:** 保持本文为 brand SSOT；需要 UI 实现时另写 `docs/DESIGN-system.md`（soft-editorial 骨架 + 从 `src/style.css` 回填）
+
 # HoloPinch — Design Brief
 
 > Single source of truth for brand/visual identity + **distribution asset priority**.
