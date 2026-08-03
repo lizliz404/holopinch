@@ -413,6 +413,11 @@ button:hover {
   border-color: rgba(255, 255, 255, 0.28);
 }
 
+button:active:not(:disabled) {
+  transform: scale(0.97);
+  transition-duration: 80ms;
+}
+
 button:disabled {
   opacity: 0.55;
   cursor: wait;
@@ -687,6 +692,11 @@ button.primary:hover {
 }
 
 /* Social / README capture: stage only */
+html.capture-clean .pop-noise,
+html.capture-clean .pop-progress {
+  display: none !important;
+}
+
 html.capture-clean #topbar .tagline,
 html.capture-clean .capture-hidden,
 .capture-hidden {
@@ -794,4 +804,7 @@ html.capture-clean .demo-handle {
     transition: none;
   }
 
+  button:active:not(:disabled) {
+    transform: none;
+  }
 }

@@ -1,12 +1,23 @@
 import './style.css';
+import './styles/premium-one-pager.css';
 import { resolveAnchors, type AnchorPair } from './anchors';
 import { DemoHands } from './demo';
 import { HandTracker } from './hands';
 import { applyDom, lang, setLang, t } from './i18n';
+import { initPremiumOnePager } from './lib/premium-one-pager';
 import { PrismScene, type ShadeMode } from './scene';
 
 // Apply i18n to static DOM before any interaction
 applyDom();
+
+// 附 A light: progress + noise + selection/scrollbar/prm. Skip chapter dots (single-screen toy).
+// No pop-reveal on hero — LCP brand must stay visible.
+initPremiumOnePager({
+  enableChapters: false,
+  enableReveal: false,
+  enableProgress: true,
+  enableNoise: true,
+});
 
 const app = document.querySelector<HTMLDivElement>('#app')!;
 const video = document.querySelector<HTMLVideoElement>('#video')!;
