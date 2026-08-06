@@ -206,7 +206,8 @@ export function setLang(next: Lang): void {
   try { localStorage.setItem(STORAGE_KEY, next); } catch { /* ok */ }
   const path = location.pathname;
   const canonical = next === 'zh' ? (path.startsWith('/zh') ? path : '/zh' + path) : path.replace(/^\/zh/, '') || '/';
-  history.replaceState(null, '', canonical);
+  // Preserve query (e.g. ?motion=1) and hash — house setLang must not drop location.search
+  history.replaceState(null, '', canonical + location.search + location.hash);
   applyDom();
   // Dynamic strings: main.ts re-reads t() via initDynamicStrings()
 }

@@ -6,7 +6,7 @@
     <title>HoloPinch — Hold a hologram between your hands</title>
     <meta
       name="description"
-      content="Browser AR: pinch, and a holographic mesh lives between your hands. MediaPipe + WebGL. No install."
+      content="Want a hologram without an app? Pinch both hands in the browser — a live mesh locks between your fingers. MediaPipe + WebGL. Free, no account."
     />
     <link rel="canonical" href="https://holopinch.lizliz.xyz/" />
     <link rel="alternate" hreflang="en" href="https://holopinch.lizliz.xyz/" />
@@ -36,7 +36,7 @@
     <meta property="og:title" content="HoloPinch — Hold a hologram between your hands" />
     <meta
       property="og:description"
-      content="Browser AR: pinch, and a holographic mesh lives between your hands. MediaPipe + WebGL. No install."
+      content="Want a hologram without an app? Pinch both hands in the browser — a live mesh locks between your fingers. MediaPipe + WebGL. Free, no account."
     />
     <meta property="og:image" content="https://holopinch.lizliz.xyz/og.png?v=20260801b" />
     <meta property="og:image:type" content="image/png" />
@@ -51,7 +51,7 @@
     <meta name="twitter:title" content="HoloPinch — Hold a hologram between your hands" />
     <meta
       name="twitter:description"
-      content="Browser AR: pinch, and a holographic mesh lives between your hands. MediaPipe + WebGL. No install."
+      content="Want a hologram without an app? Pinch both hands in the browser — a live mesh locks between your fingers. MediaPipe + WebGL. Free, no account."
     />
     <meta name="twitter:image" content="https://holopinch.lizliz.xyz/og.png?v=20260801b" />
     <meta
@@ -62,35 +62,96 @@
     <script type="application/ld+json">
       {
         "@context": "https://schema.org",
-        "@type": "WebApplication",
-        "name": "HoloPinch",
-        "url": "https://holopinch.lizliz.xyz/",
-        "applicationCategory": "GameApplication",
-        "operatingSystem": "Any (browser)",
-        "browserRequirements": "Requires a browser with camera access and WebGL",
-        "offers": {
-          "@type": "Offer",
-          "price": "0",
-          "priceCurrency": "USD"
-        },
-        "author": {
-          "@type": "Person",
-          "name": "Liz"
-        },
-        "isPartOf": {
-          "@type": "WebSite",
-          "url": "https://lizliz.xyz"
-        }
+        "@graph": [
+          {
+            "@type": "Organization",
+            "name": "HoloPinch",
+            "url": "https://holopinch.lizliz.xyz/",
+            "logo": "https://holopinch.lizliz.xyz/favicon.svg",
+            "founder": {
+              "@type": "Person",
+              "name": "Liz",
+              "url": "https://lizliz.xyz/"
+            }
+          },
+          {
+            "@type": "WebSite",
+            "name": "HoloPinch",
+            "url": "https://holopinch.lizliz.xyz/",
+            "inLanguage": ["en", "zh"],
+            "publisher": {
+              "@type": "Person",
+              "name": "Liz",
+              "url": "https://lizliz.xyz/"
+            }
+          },
+          {
+            "@type": "WebApplication",
+            "name": "HoloPinch",
+            "url": "https://holopinch.lizliz.xyz/",
+            "description": "Browser AR toy: pinch with one or both hands and a live holographic mesh locks between your fingers. MediaPipe HandLandmarker + WebGL + three.js. Free, no install, no account.",
+            "applicationCategory": "GameApplication",
+            "operatingSystem": "Any (browser)",
+            "browserRequirements": "Requires a browser with camera access and WebGL",
+            "image": "https://holopinch.lizliz.xyz/og.png",
+            "isAccessibleForFree": true,
+            "inLanguage": ["en", "zh"],
+            "offers": {
+              "@type": "Offer",
+              "price": "0",
+              "priceCurrency": "USD"
+            },
+            "author": {
+              "@type": "Person",
+              "name": "Liz",
+              "url": "https://lizliz.xyz/"
+            },
+            "isPartOf": {
+              "@type": "WebSite",
+              "name": "lizliz.xyz",
+              "url": "https://lizliz.xyz/"
+            }
+          },
+          {
+            "@type": "FAQPage",
+            "mainEntity": [
+              {
+                "@type": "Question",
+                "name": "What is HoloPinch?",
+                "acceptedAnswer": {
+                  "@type": "Answer",
+                  "text": "HoloPinch is a free browser AR toy by Liz: a live hologram mesh appears between your fingers using the camera. No app, no account, no backend."
+                }
+              },
+              {
+                "@type": "Question",
+                "name": "How do you use HoloPinch?",
+                "acceptedAnswer": {
+                  "@type": "Answer",
+                  "text": "The camera wakes on its own. Pinch or spread one or both hands. Closer and flat makes a foil card; farther and open makes a crystal bar. Best with two hands. Without a camera, demo orbs on stage still respond."
+                }
+              },
+              {
+                "@type": "Question",
+                "name": "What technology does HoloPinch use?",
+                "acceptedAnswer": {
+                  "@type": "Answer",
+                  "text": "MediaPipe HandLandmarker, WebGL, and three.js. One flatness value drives opacity, edges, and foil."
+                }
+              }
+            ]
+          }
+        ]
       }
     </script>
-  <!-- GA4: shared property with lizliz.xyz (G-TXVLTJJ878); filter by hostname in GA -->
-<script async src="https://www.googletagmanager.com/gtag/js?id=G-TXVLTJJ878"></script>
-<script>
-  window.dataLayer = window.dataLayer || [];
-  function gtag(){dataLayer.push(arguments);}
-  gtag('js', new Date());
-  gtag('config', 'G-TXVLTJJ878');
-</script>
+    <!-- GA4: shared property with lizliz.xyz (G-TXVLTJJ878); filter by hostname in GA -->
+    <script async src="https://www.googletagmanager.com/gtag/js?id=G-TXVLTJJ878"></script>
+    <script>
+      window.dataLayer = window.dataLayer || [];
+      function gtag(){dataLayer.push(arguments);}
+      gtag('js', new Date());
+      gtag('config', 'G-TXVLTJJ878');
+    </script>
 
 </head>
   <body>
