@@ -1,0 +1,33 @@
+# HoloPinch
+
+> Free browser AR toy by Liz: pinch one or both hands and a live holographic mesh locks between your fingers. MediaPipe HandLandmarker + WebGL + three.js. No app, no account, no backend.
+
+## Product
+
+- What: interactive hologram mesh driven by hand pinches in the browser camera
+- Maker: Liz (https://lizliz.xyz/)
+- Category: browser AR / WebApplication (toy)
+- Stack: Vite + TypeScript + MediaPipe HandLandmarker + WebGL + three.js (static Cloudflare Pages)
+- Price: free; no install, no account
+- Data: camera stays local in the browser; no backend
+- Languages: English (default), Chinese at `/zh/`
+
+## How it works
+
+- Camera wakes on its own (or open controls). Pinch or spread one or both hands.
+- Closer + flat → foil card. Farther + open → crystal bar. Best with two hands.
+- One `flatness` value drives opacity, edges, and foil.
+- Without a camera (or if denied), demo orbs on stage still respond.
+
+## Links
+
+- Play: https://holopinch.lizliz.xyz/
+- Chinese: https://holopinch.lizliz.xyz/zh/
+- Sitemap: https://holopinch.lizliz.xyz/sitemap.xml
+- GitHub: https://github.com/lizliz404/holopinch
+- Maker: https://lizliz.xyz/
+
+## What it is not
+
+- Not a native AR app store download
+- Not a multiplayer social product or account-gated SaaS

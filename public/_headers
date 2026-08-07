@@ -5,6 +5,21 @@
   X-Frame-Options: DENY
   Permissions-Policy: camera=(self), microphone=()
 
+# SPA locale prefix serves the same shell; mirror root HTML headers.
+/zh
+  Cache-Control: no-cache
+  X-Content-Type-Options: nosniff
+  Referrer-Policy: strict-origin-when-cross-origin
+  X-Frame-Options: DENY
+  Permissions-Policy: camera=(self), microphone=()
+
+/zh/
+  Cache-Control: no-cache
+  X-Content-Type-Options: nosniff
+  Referrer-Policy: strict-origin-when-cross-origin
+  X-Frame-Options: DENY
+  Permissions-Policy: camera=(self), microphone=()
+
 # Hashed Vite assets only. Keep immutable ONLY on real fingerprinted files.
 # Do not SPA-fallback HTML onto these paths (see docs/INCIDENT-asset-cache.md).
 /assets/*.js
